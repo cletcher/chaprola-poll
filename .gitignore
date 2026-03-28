@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# MCP configuration (contains API keys)
+.mcp.json
+
+# Environment files (keep API keys out of git)
+.env
+.env.local
+.env.production
+
+# Vercel
+.vercel/
+
+# Cloudflare
+.wrangler/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Logs
+*.log
+output_*.log
+
+# Temporary files
+/tmp/

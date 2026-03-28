@@ -1,0 +1,6 @@
+name = "chaprola-poll-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Set the secret with: wrangler secret put CHAPROLA_API_KEY
+# Then enter your API key when prompted

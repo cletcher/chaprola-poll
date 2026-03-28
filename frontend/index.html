@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaprola Poll - Create and Vote on Polls</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">Chaprola Poll</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/create.html">Create Poll</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h1>Quick Polls, Real Results</h1>
+            <p>Create polls in seconds. Share with your team. See live results.</p>
+            <a href="/create.html" class="btn btn-primary">Create a Poll</a>
+        </section>
+
+        <section class="polls-section">
+            <h2>Open Polls</h2>
+            <div id="polls-container" class="polls-grid">
+                <div class="loading">Loading polls...</div>
+            </div>
+            <noscript>
+                <p class="noscript-message">JavaScript is required to load polls dynamically. Please enable JavaScript or visit the poll links directly.</p>
+            </noscript>
+        </section>
+    </main>
+
+    <footer>
+        <p>Powered by <a href="https://chaprola.org" target="_blank">Chaprola</a></p>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('polls-container');
+            try {
+                const polls = await fetchPolls();
+                if (polls.length === 0) {
+                    container.innerHTML = '<p class="empty-state">No open polls yet. <a href="/create.html">Create the first one!</a></p>';
+                    return;
+                }
+                container.innerHTML = polls.map(poll => `
+                    <article class="poll-card">
+                        <h3>${escapeHtml(poll.title)}</h3>
+                        <p class="poll-options">${poll.optionCount} options</p>
+                        <p class="poll-date">Created ${formatDate(poll.createdAt)}</p>
+                        <div class="poll-actions">
+                            <a href="/vote.html?poll=${poll.pollId}" class="btn btn-vote">Vote</a>
+                            <a href="/results.html?poll=${poll.pollId}" class="btn btn-results">Results</a>
+                        </div>
+                    </article>
+                `).join('');
+            } catch (error) {
+                container.innerHTML = `<p class="error">Failed to load polls: ${escapeHtml(error.message)}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
