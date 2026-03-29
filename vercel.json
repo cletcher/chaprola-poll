@@ -6,14 +6,26 @@
       "use": "@vercel/static"
     },
     {
-      "src": "api/proxy.js",
+      "src": "api/**/*.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/proxy",
-      "dest": "/api/proxy.js"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*\\.(?:css|js|ico|png|jpg|svg))",
+      "dest": "/frontend/$1"
+    },
+    {
+      "src": "/(.*\\.html)",
+      "dest": "/frontend/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/frontend/index.html"
     },
     {
       "src": "/(.*)",
@@ -21,6 +33,6 @@
     }
   ],
   "env": {
-    "CHAPROLA_USERNAME": "chaprola-poll"
+    "CHAPROLA_API_KEY": "@chaprola-api-key"
   }
 }

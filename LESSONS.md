@@ -1,166 +1,177 @@
-# Lessons Learned - Chaprola MCP Documentation Feedback
+# Lessons Learned: Building with Chaprola
 
-After building a full poll application with Chaprola, here are observations about the MCP documentation and what could be improved.
-
-## What Worked Well
-
-### 1. The Cookbook Resource
-The `chaprola://cookbook` resource was the most valuable. The examples for:
-- Hello World
-- Loop through records
-- JOIN with FIND
-- PARAM.name for parameters
-- PUT format codes
-
-These were clear and directly applicable.
-
-### 2. The Gotchas Resource
-Reading `chaprola://gotchas` upfront saved significant debugging time. Especially:
-- "IF EQUAL requires a length"
-- "No parentheses in LET"
-- "DEFINE VARIABLE names must not collide with field names"
-
-### 3. Auth Documentation
-The `chaprola://auth` resource clearly explained the API key model and when BAA is needed (only for PHI).
+Feedback on the Chaprola MCP documentation after building a real application.
 
 ## What Was Hard to Figure Out
 
-### 1. PRINT Length Behavior
-The documentation doesn't clearly explain what `PRINT 0` vs `PRINT N` does differently.
+### 1. Field Width Precision
 
-**Discovery:** `PRINT 0` outputs the entire U buffer and clears it. `PRINT N` outputs exactly N characters. Without specifying N, output includes garbage from the record buffer.
+The documentation mentions "MOVE length must match field width" but doesn't emphasize how critical this is. When I used `MOVE P.poll_id U.1 12` but the field was 11 chars wide, the extra character bled into adjacent data, corrupting output.
 
-**Suggested addition to cookbook:**
+**Suggestion**: Add a prominent warning box in the cookbook:
+> **Critical**: Always call `/format` to check exact field widths before writing programs. MOVE lengths that exceed the field width will read into adjacent fields.
+
+### 2. IF EQUAL Syntax
+
+The gotchas mention "IF EQUAL compares a literal to a location" but the full syntax `IF EQUAL literal U.pos len GOTO` isn't shown anywhere. I had to guess that a length parameter was required.
+
+**Suggestion**: Add a complete syntax reference:
+```
+IF EQUAL "literal" U.position length GOTO label
+IF EQUAL U.pos1 U.pos2 length GOTO label  // Comparing two buffer locations
+```
+
+### 3. PRINT 0 Buffer Clearing
+
+The gotchas say "PRINT 0 clears the U buffer" but I found leftover data from previous lines bleeding through. Had to explicitly `MOVE BLANKS U.X Y` to clear positions.
+
+**Suggestion**: Clarify that PRINT 0 clears positions it printed, but unused positions may retain old data. Show a pattern:
 ```chaprola
-// PRINT 0 - output full buffer, then clear it
-// PRINT N - output exactly N characters (use for clean output)
-MOVE "Hello" U.1 5
-PRINT 5    // Outputs "Hello" - exactly 5 chars
+// Safe pattern: clear buffer before building each line
+MOVE BLANKS U.1 100
+MOVE "DATA|" U.1 5
+MOVE P.field U.6 20
+PRINT 0
 ```
 
-### 2. Index API Parameters
-The MCP tool documentation shows:
-```
-chaprola_index(project, file, field)
-```
+### 4. No String Escapes
 
-But the actual API requires:
-```json
-{"project": "...", "file": "...", "key_fields": ["..."], "output": "..."}
-```
+I tried to output JSON with `MOVE "{\"key\":\"value\"}" U.1 20` and got a lexer error. There's no mention in the docs that backslashes aren't supported.
 
-**Suggestion:** Align MCP tool parameters with API, or document the transformation.
+**Suggestion**: Add to gotchas:
+> Chaprola strings don't support escape sequences. No `\n`, `\"`, `\\`. Use pipe-delimited or positional output instead of JSON.
 
-### 3. WHERE Clause Format
-The `/query` endpoint documentation in `chaprola://endpoints` shows:
-```
-where?: {field, op, value}
-```
+### 5. Query vs Program Aggregation
 
-But it actually requires an array:
-```json
-"where": [{"field": "...", "op": "...", "value": "..."}]
-```
+The cookbook shows `pivot` for GROUP BY in `/query` but I initially assumed I could do this in programs. Programs can only loop and accumulate manually.
 
-**Suggestion:** Show complete, copy-paste-ready examples.
+**Suggestion**: Add a note:
+> Aggregation (count, sum, avg) is only available in `/query` with `pivot`. Programs must accumulate manually using R-variables.
 
-### 4. Pivot Syntax
-The cookbook shows pivot examples but the actual API has additional required fields:
+### 6. primary_format Parameter
 
-**What I tried:**
-```json
-"pivot": {"row": "option", "values": [{"field": "option", "function": "count"}]}
-```
+I was confused about when to use `primary_format` vs `primary_file`. The difference:
+- `primary_format`: Used in `/compile` to enable `P.fieldname` addressing
+- `primary_file`: Used in `/run` and `/publish` to specify the data file
 
-**What actually works:**
-```json
-"pivot": {"row": "option", "column": "", "aggregate": "count", "value": "option"}
-```
+**Suggestion**: Add a comparison table:
+| Parameter | Endpoint | Purpose |
+|-----------|----------|---------|
+| primary_format | /compile | Enables P.fieldname syntax |
+| primary_file | /run, /publish | Specifies data file to load |
 
-**Suggestion:** Document all required pivot fields, even when empty.
+### 7. PARAM.name Behavior
 
-### 5. IF EQUAL with Variables
-The cookbook shows comparing a literal to a location:
-```chaprola
-IF EQUAL "CREDIT" U.76 GOTO 200
-```
+The cookbook shows `PARAM.name` but doesn't explain:
+- What happens if the param is missing? (Empty string? Error?)
+- Are params automatically trimmed?
+- Max param length?
 
-But comparing two memory locations isn't documented. I discovered you must copy to U buffer first:
-```chaprola
-MOVE PARAM.poll_id U.200 12
-MOVE P.poll_id U.180 11
-IF EQUAL U.200 U.180 11 GOTO 200
-```
-
-**Suggestion:** Add an example of comparing two variables.
-
-### 6. R-Variable Restrictions
-The gotchas mention R1-R20 for HULDRA elements and R21-R40 for objectives. But it's not emphasized that **all user programs** should use R41-R50 to be safe.
-
-**Suggestion:** Add a prominent note: "Use R41-R50 for all DEFINE VARIABLE declarations."
+**Suggestion**: Document PARAM behavior fully.
 
 ## What Would Have Saved Time
 
-### 1. Complete Working Examples
-A full example program with:
-- Parameter input
-- Record filtering
-- Formatted output
-- Correct PRINT usage
+### 1. A "Hello World to Production" Tutorial
 
-Would have eliminated most trial-and-error.
+The cookbook has great snippets but no end-to-end example. A complete mini-app tutorial showing:
+1. Design schema
+2. Import data
+3. Write a program
+4. Compile with correct params
+5. Publish
+6. Call from frontend
 
-### 2. API Request/Response Pairs
-Show exact curl commands with actual responses. For example:
-```bash
-curl -X POST https://api.chaprola.org/compile \
-  -H "Authorization: Bearer chp_..." \
-  -H "Content-Type: application/json" \
-  -d '{"userid": "demo", "project": "test", "name": "HELLO", "source": "MOVE \"Hi\" U.1 2\nPRINT 2\nEND"}'
+Would have saved 30+ minutes of trial and error.
 
-# Response:
-# {"status": "ok", "instructions": 3, "strings": 1}
+### 2. Common Output Patterns
+
+Show patterns for:
+- Pipe-delimited output (what I ended up using)
+- Fixed-width columnar output
+- HTML table output
+- "JSON-like" key-value output
+
+### 3. Field Addressing Cheat Sheet
+
+A quick reference for all field addressing:
+```
+P.fieldname  - Primary record field (requires primary_format)
+S.fieldname  - Secondary record field (requires secondary_format)
+U.position   - Output buffer at position
+U.name       - Named output position (auto-allocated)
+PARAM.name   - URL query parameter
+X.DATE       - System date
+X.TIME       - System time
+R1-R50       - Numeric registers
 ```
 
-### 3. Debug/Trace Mode
-A way to trace program execution would help debugging:
-```bash
-POST /run {"...", "trace": true}
-# Shows each instruction executed with U buffer state
-```
+### 4. Error Message Guide
 
-### 4. Field Width Reference
-A quick reference showing common field widths:
-- ISO datetime: 20 chars
-- UUID: 36 chars
-- Email: ~50 chars
-- Short ID: 8-12 chars
+A table mapping error messages to solutions:
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "IF EQUAL requires a length" | Missing length param | `IF EQUAL "x" U.1 3 GOTO` |
+| "Unexpected character '\\'" | Escape in string | Remove escape, use different format |
+| "Invalid field: P.foo" | Missing primary_format | Add `primary_format: "datafile"` |
 
-## Minor Documentation Issues
+### 5. MCP Tool Examples with Expected Output
 
-### 1. Endpoint Table Formatting
-Some tables in `chaprola://endpoints` have inconsistent column alignment.
+The MCP tool descriptions are good, but showing expected responses would help:
 
-### 2. Missing secondary_format Example
-The cookbook mentions `secondary_format` for JOIN but doesn't show compilation:
-```bash
-POST /compile {
-  "...",
-  "primary_format": "EMPLOYEES",
-  "secondary_format": "DEPARTMENTS"  // <-- add example
+```javascript
+// Input
+chaprola_format({ project: "poll", name: "votes" })
+
+// Output
+{
+  "filename": "votes",
+  "record_length": 66,
+  "fields": [
+    { "name": "poll_id", "position": 1, "length": 11 },
+    ...
+  ]
 }
 ```
 
-### 3. Typo in Gotchas
-"R-variables are floating point" section could note that integer display uses PUT with I format.
+## Documentation Improvements I'd Make
 
-## Summary
+1. **Add a "Before You Code" checklist**:
+   - [ ] Call `/format` to get exact field widths
+   - [ ] Decide output format (pipe-delimited, fixed-width, etc.)
+   - [ ] Check if you need params (`PARAM.name`)
+   - [ ] Verify primary/secondary file names
 
-The Chaprola documentation is good for getting started but has gaps for edge cases. The most impactful improvements would be:
+2. **Add a "Debugging Programs" section**:
+   - How to test programs locally before publishing
+   - How to add debug output (`PRINT 0` with markers)
+   - Common error patterns and fixes
 
-1. **Complete PRINT documentation** - this caused the most confusion
-2. **Aligned MCP/API parameters** - especially for /index
-3. **Copy-paste examples** - full curl commands with responses
-4. **Variable comparison example** - comparing PARAM to P.field
+3. **Expand the gotchas into a FAQ**:
+   - "Why is my output garbled?" → Field width mismatch
+   - "Why does my program compile but output nothing?" → IF/GOTO logic skipping PRINT
+   - "How do I output a pipe character?" → It's just `MOVE "|" U.X 1`
 
-Overall, the Chaprola system is well-designed. These documentation improvements would make the onboarding smoother.
+4. **Add a troubleshooting flowchart**:
+   ```
+   Program outputs wrong data
+   → Check field widths with /format
+   → Verify MOVE lengths match exactly
+   → Add MOVE BLANKS before each line
+
+   Program outputs nothing
+   → Check IF conditions are correct
+   → Verify SEEK is reaching records
+   → Add debug PRINT statements
+   ```
+
+## Overall Assessment
+
+Chaprola is a fascinating system - it feels like COBOL meets serverless. The MCP documentation is good for understanding concepts but falls short on practical, end-to-end examples. The biggest pain points were around exact field widths and output buffer management.
+
+For a v2 of the docs, I'd recommend:
+1. More complete syntax references (not just examples)
+2. A full tutorial building a small app
+3. Expanded error message documentation
+4. A clear "common patterns" section for output formatting
+
+Despite the learning curve, once I understood the model, development was fast. The publish/report pattern for public APIs is elegant, and the MCP integration makes iteration quick.

@@ -1,173 +1,219 @@
 # Chaprola Poll
 
-A simple, fast poll/survey application built with [Chaprola](https://chaprola.org) as the backend.
+A real-time polling application built with [Chaprola](https://chaprola.org) as the backend. Create polls, share links, vote, and watch results update live.
 
 ## Features
 
-- Create polls with multiple options
-- Vote on open polls
-- View live results with auto-refresh
-- Cross-tabulation by voter group/team
-- Mobile-friendly design
-- No database setup required
+- **Create Polls**: Add a title and 2-10 options
+- **Share Links**: Get a shareable voting link instantly
+- **Vote**: Simple one-click voting with optional team/group tags
+- **Live Results**: Auto-refreshing bar charts every 10 seconds
+- **Cross-tabulation**: See how votes break down by group
+- **Mobile Friendly**: Responsive design works on any device
+
+## Live Demo
+
+**Coming Soon** - Deploy your own instance following the instructions below.
+
+## Screenshots
+
+### Home - Browse Open Polls
+```
+┌─────────────────────────────────────────────┐
+│ ChaprolaPoll          Browse | Create       │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Friday Lunch Order - March 28              │
+│  ┌──────┐ Created Mar 25, 2026              │
+│  │ open │                                   │
+│  └──────┘                                   │
+│  [Pizza] [Thai Food] [Mexican] [Sandwiches] │
+│                                             │
+│  [Vote]  [Results]                          │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+### Results - Live Vote Counts
+```
+┌─────────────────────────────────────────────┐
+│  Friday Lunch Order - March 28              │
+│  ┌──────┐  47 votes                         │
+│  │ open │                                   │
+│  └──────┘                                   │
+│                                             │
+│  Pizza        ████████████████████  14 (30%)│
+│  Mexican      ███████████████       12 (26%)│
+│  Sandwiches   ████████████          10 (21%)│
+│  Thai Food    ██████████            11 (23%)│
+│                                             │
+│              Auto-refreshing every 10s      │
+└─────────────────────────────────────────────┘
+```
 
 ## Architecture
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Static HTML/   │────▶│  Cloudflare      │────▶│   Chaprola API  │
-│  CSS/JS         │     │  Worker (proxy)  │     │   (backend)     │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-         │                                               │
-         │ Public reads (/report)                        │
-         └───────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         Frontend                              │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
+│  │ index   │ │  vote   │ │ results │ │ create  │            │
+│  │  .html  │ │  .html  │ │  .html  │ │  .html  │            │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘            │
+│       │           │           │           │                  │
+└───────┼───────────┼───────────┼───────────┼──────────────────┘
+        │           │           │           │
+        ▼           ▼           ▼           ▼
+┌───────────────────────────────────────────────────┐
+│                  Chaprola API                      │
+│  ┌────────────────────┐  ┌─────────────────────┐  │
+│  │ /report (public)   │  │ /insert_record      │  │
+│  │ - POLLLIST         │  │ (via Vercel proxy)  │  │
+│  │ - POLLDETAIL       │  │                     │  │
+│  │ - RESULTS          │  │                     │  │
+│  └────────────────────┘  └─────────────────────┘  │
+│                                                    │
+│  ┌─────────────────────────────────────────────┐  │
+│  │              Chaprola Storage                │  │
+│  │  polls.DA  │  votes.DA  │  *.PR programs    │  │
+│  └─────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────┘
 ```
 
-- **Frontend:** Vanilla HTML/CSS/JavaScript (no framework)
-- **Backend:** Chaprola serverless API
-- **Proxy:** Cloudflare Worker or Vercel function (for authenticated writes)
+## Tech Stack
 
-## Quick Start
-
-### 1. Clone and Deploy Frontend
-
-```bash
-git clone https://github.com/yourusername/chaprola-poll.git
-cd chaprola-poll
-
-# Deploy to Vercel
-vercel
-
-# Or deploy to Cloudflare Pages
-# (drag frontend/ folder to dashboard)
-```
-
-### 2. Deploy Proxy
-
-**Option A: Vercel** (included in main deploy)
-```bash
-# Set environment variable in Vercel dashboard
-CHAPROLA_API_KEY=chp_your_api_key_here
-```
-
-**Option B: Cloudflare Worker**
-```bash
-cd worker
-npm install -g wrangler
-wrangler login
-wrangler secret put CHAPROLA_API_KEY  # Enter your key when prompted
-wrangler deploy
-```
-
-### 3. Update Proxy URL
-
-Edit `frontend/app.js` and update `PROXY_URL` to point to your deployed proxy:
-```javascript
-const PROXY_URL = 'https://your-worker.workers.dev';
-// or for Vercel: '/api/proxy'
-```
+- **Backend**: Chaprola (serverless data platform)
+- **Frontend**: Vanilla HTML, CSS, JavaScript (no framework)
+- **Proxy**: Vercel Serverless Functions (Node.js)
+- **Hosting**: Vercel
 
 ## Local Development
 
-```bash
-# Serve frontend locally
-cd frontend
-python -m http.server 8000
-# Visit http://localhost:8000
+### Prerequisites
 
-# For full functionality, you'll need to deploy the proxy
-# or run a local proxy that adds the API key
-```
+- Node.js 18+
+- Vercel CLI (`npm i -g vercel`)
+- A Chaprola account and API key
 
-## Chaprola Setup
+### Setup
 
-The backend uses these Chaprola resources:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/chaprola-poll.git
+   cd chaprola-poll
+   ```
 
-| Resource | Description |
-|----------|-------------|
-| `polls` | Poll records (id, title, options, status) |
-| `votes` | Vote records (poll_id, option, voter_tag) |
-| `POLLLIST.PR` | Published program to list open polls |
-| `POLLDETAIL.PR` | Published program to get poll details |
-| `RESULTS.PR` | Published program to get vote results |
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local and add your CHAPROLA_API_KEY
+   ```
 
-### Creating Your Own Backend
+3. **Run locally**
+   ```bash
+   vercel dev
+   ```
 
-1. Register at Chaprola:
-```bash
-curl -X POST https://api.chaprola.org/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "your-app", "passcode": "your-secure-passcode"}'
-```
+4. **Open in browser**
+   ```
+   http://localhost:3000
+   ```
 
-2. Import the data schema (see `COOKBOOK.md` for details)
+### Chaprola Backend Setup
 
-3. Compile and publish the programs (source in `chaprola/` directory)
+If you're setting up your own Chaprola backend:
 
-## Project Structure
+1. **Register an account** using the MCP server or API
+2. **Import seed data** - see `chaprola/setup.sh` for the data structure
+3. **Compile programs** - `POLLLIST.CS`, `POLLDETAIL.CS`, `RESULTS.CS`
+4. **Publish reports** with `acl: "public"`
+5. **Update the frontend** with your userid
 
-```
-chaprola-poll/
-├── frontend/
-│   ├── index.html      # Home page - list of polls
-│   ├── vote.html       # Vote on a poll
-│   ├── results.html    # View results
-│   ├── create.html     # Create a new poll
-│   ├── styles.css      # Custom CSS
-│   └── app.js          # JavaScript functions
-├── api/
-│   └── proxy.js        # Vercel serverless function
-├── worker/
-│   ├── worker.js       # Cloudflare Worker
-│   └── wrangler.toml   # Worker configuration
-├── vercel.json         # Vercel deployment config
-├── COOKBOOK.md         # Detailed build narrative
-├── LESSONS.md          # Documentation feedback
-└── README.md           # This file
-```
+## Deployment
 
-## API Endpoints
+### Deploy to Vercel
 
-The app uses these Chaprola report endpoints (public, no auth required):
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
 
-| Endpoint | Parameters | Returns |
-|----------|------------|---------|
-| `/report?name=POLLLIST` | none | Pipe-delimited list of open polls |
-| `/report?name=POLLDETAIL` | `poll_id` | Poll title, options, status |
-| `/report?name=RESULTS` | `poll_id` | Individual votes with voter tags |
+2. **Import to Vercel**
+   - Go to [vercel.com/new](https://vercel.com/new)
+   - Import your GitHub repository
+   - Add environment variable: `CHAPROLA_API_KEY`
 
-Base URL: `https://api.chaprola.org/report?userid=chaprola-poll&project=poll`
-
-## Configuration
+3. **Deploy**
+   - Vercel will automatically deploy on push
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `CHAPROLA_API_KEY` | API key for authenticated operations |
-| `CHAPROLA_USERNAME` | Username (default: chaprola-poll) |
+| `CHAPROLA_API_KEY` | Your Chaprola API key (starts with `chp_`) |
 
-### Frontend Configuration
+## Project Structure
 
-Edit `frontend/app.js`:
-```javascript
-const USERID = 'your-chaprola-username';
-const PROJECT = 'poll';
-const PROXY_URL = 'https://your-proxy-url';
 ```
+chaprola-poll/
+├── api/
+│   └── proxy.js          # Serverless function for authenticated requests
+├── frontend/
+│   ├── index.html        # Home page - list polls
+│   ├── vote.html         # Voting page
+│   ├── results.html      # Results page with live updates
+│   ├── create.html       # Create new poll
+│   ├── styles.css        # All styles
+│   └── app.js            # Shared utilities
+├── chaprola/
+│   ├── POLLLIST.CS       # List open polls
+│   ├── POLLDETAIL.CS     # Get single poll
+│   ├── RESULTS.CS        # Get votes for a poll
+│   └── setup.sh          # Backend setup documentation
+├── vercel.json           # Vercel configuration
+├── COOKBOOK.md           # How this was built
+├── LESSONS.md            # Documentation feedback
+└── README.md             # This file
+```
+
+## API Endpoints
+
+### Public Reports (no auth required)
+
+| Endpoint | Description |
+|----------|-------------|
+| `/report?...&name=POLLLIST` | List all open polls |
+| `/report?...&name=POLLDETAIL&poll_id=X` | Get poll details |
+| `/report?...&name=RESULTS&poll_id=X` | Get votes for poll |
+
+### Proxy Endpoints (authenticated via proxy)
+
+| Action | Description |
+|--------|-------------|
+| `POST /api/proxy` `{action: "vote", ...}` | Cast a vote |
+| `POST /api/proxy` `{action: "create_poll", ...}` | Create new poll |
 
 ## Contributing
 
+Contributions are welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
-3. Submit a pull request
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Built on [Chaprola](https://chaprola.org) - serverless data processing
-- CSS inspired by modern design systems
-- No frameworks were harmed in the making of this app
+- Built with [Chaprola](https://chaprola.org) - a unique serverless data platform
+- Hosted on [Vercel](https://vercel.com)
+- Inspired by simple tools like Strawpoll and Doodle
+
+---
+
+Built with Chaprola MCP by Claude

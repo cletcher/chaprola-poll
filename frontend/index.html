@@ -1,69 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chaprola Poll - Create and Vote on Polls</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chaprola Poll - Quick Polls for Teams</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="/" class="logo">Chaprola Poll</a>
-            <div class="nav-links">
-                <a href="/">Home</a>
-                <a href="/create.html">Create Poll</a>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <nav>
+        <a href="/">Browse Polls</a>
+        <a href="/create.html">Create Poll</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Open Polls</h1>
+
+    <div id="polls-list" class="loading">Loading polls...</div>
+
+    <noscript>
+      <div class="message message-error">
+        JavaScript is required to load polls dynamically.
+        Please enable JavaScript or contact the poll creator for a direct link.
+      </div>
+    </noscript>
+  </main>
+
+  <script>
+    const API_BASE = 'https://api.chaprola.org';
+    const USERID = 'chaprola-poll';
+    const PROJECT = 'poll';
+
+    async function loadPolls() {
+      const container = document.getElementById('polls-list');
+
+      try {
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLLIST`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        const polls = parsePolls(text);
+
+        if (polls.length === 0) {
+          container.innerHTML = '<div class="card"><p>No open polls at the moment. <a href="/create.html">Create one!</a></p></div>';
+          return;
+        }
+
+        container.innerHTML = polls.map(poll => `
+          <div class="card">
+            <h3 class="card-title">${escapeHtml(poll.title)}</h3>
+            <div class="card-meta">
+              <span class="status status-open">Open</span>
+              Created ${formatDate(poll.created_at)}
             </div>
-        </nav>
-    </header>
-
-    <main>
-        <section class="hero">
-            <h1>Quick Polls, Real Results</h1>
-            <p>Create polls in seconds. Share with your team. See live results.</p>
-            <a href="/create.html" class="btn btn-primary">Create a Poll</a>
-        </section>
-
-        <section class="polls-section">
-            <h2>Open Polls</h2>
-            <div id="polls-container" class="polls-grid">
-                <div class="loading">Loading polls...</div>
+            <div class="card-options">
+              ${poll.options.map(opt => `<span class="option-tag">${escapeHtml(opt)}</span>`).join('')}
             </div>
-            <noscript>
-                <p class="noscript-message">JavaScript is required to load polls dynamically. Please enable JavaScript or visit the poll links directly.</p>
-            </noscript>
-        </section>
-    </main>
+            <div>
+              <a href="/vote.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-primary btn-small">Vote</a>
+              <a href="/results.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-secondary btn-small">Results</a>
+            </div>
+          </div>
+        `).join('');
 
-    <footer>
-        <p>Powered by <a href="https://chaprola.org" target="_blank">Chaprola</a></p>
-    </footer>
+      } catch (error) {
+        console.error('Failed to load polls:', error);
+        container.innerHTML = `
+          <div class="message message-error">
+            Failed to load polls. Please try again later.
+            <br><small>${escapeHtml(error.message)}</small>
+          </div>
+        `;
+      }
+    }
 
-    <script src="app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const container = document.getElementById('polls-container');
-            try {
-                const polls = await fetchPolls();
-                if (polls.length === 0) {
-                    container.innerHTML = '<p class="empty-state">No open polls yet. <a href="/create.html">Create the first one!</a></p>';
-                    return;
-                }
-                container.innerHTML = polls.map(poll => `
-                    <article class="poll-card">
-                        <h3>${escapeHtml(poll.title)}</h3>
-                        <p class="poll-options">${poll.optionCount} options</p>
-                        <p class="poll-date">Created ${formatDate(poll.createdAt)}</p>
-                        <div class="poll-actions">
-                            <a href="/vote.html?poll=${poll.pollId}" class="btn btn-vote">Vote</a>
-                            <a href="/results.html?poll=${poll.pollId}" class="btn btn-results">Results</a>
-                        </div>
-                    </article>
-                `).join('');
-            } catch (error) {
-                container.innerHTML = `<p class="error">Failed to load polls: ${escapeHtml(error.message)}</p>`;
-            }
+    function parsePolls(text) {
+      const lines = text.trim().split('\n').filter(line => line.trim());
+      return lines.map(line => {
+        // Format: poll_id|title|options|created_at
+        const parts = line.split('|');
+        if (parts.length < 4) return null;
+
+        return {
+          poll_id: parts[0].trim(),
+          title: parts[1].trim(),
+          options: parts.slice(2, -1).map(o => o.trim()).filter(o => o),
+          created_at: parts[parts.length - 1].trim()
+        };
+      }).filter(p => p !== null);
+    }
+
+    function formatDate(isoDate) {
+      try {
+        const date = new Date(isoDate);
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
         });
-    </script>
+      } catch {
+        return isoDate;
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load polls on page load
+    loadPolls();
+  </script>
 </body>
 </html>

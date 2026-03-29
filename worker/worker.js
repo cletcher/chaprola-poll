@@ -1,171 +1,172 @@
-// Cloudflare Worker - Proxy for Chaprola API
-// Deploy with: wrangler deploy
-// Set secrets: wrangler secret put CHAPROLA_API_KEY
+// Cloudflare Worker - Chaprola Poll Proxy
+// Alternative to Vercel serverless function
 
 const CHAPROLA_API = 'https://api.chaprola.org';
 const CHAPROLA_USERNAME = 'chaprola-poll';
-const PROJECT = 'poll';
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
-};
 
 export default {
-    async fetch(request, env, ctx) {
-        // Handle CORS preflight
-        if (request.method === 'OPTIONS') {
-            return new Response(null, { status: 200, headers: corsHeaders });
-        }
-
-        if (request.method !== 'POST') {
-            return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-                status: 405,
-                headers: corsHeaders
-            });
-        }
-
-        const apiKey = env.CHAPROLA_API_KEY;
-        if (!apiKey) {
-            console.error('CHAPROLA_API_KEY not configured');
-            return new Response(JSON.stringify({ error: 'Server configuration error' }), {
-                status: 500,
-                headers: corsHeaders
-            });
-        }
-
-        try {
-            const body = await request.json();
-            const action = body.action;
-
-            if (action === 'vote') {
-                // Validate vote data
-                const { poll_id, option, voter_tag, voted_at } = body;
-
-                if (!poll_id || typeof poll_id !== 'string' || poll_id.length > 12) {
-                    return new Response(JSON.stringify({ error: 'Invalid poll_id' }), {
-                        status: 400,
-                        headers: corsHeaders
-                    });
-                }
-
-                if (!option || typeof option !== 'string' || option.length > 100) {
-                    return new Response(JSON.stringify({ error: 'Invalid option' }), {
-                        status: 400,
-                        headers: corsHeaders
-                    });
-                }
-
-                // Insert vote record
-                const insertResponse = await fetch(`${CHAPROLA_API}/insert-record`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        userid: CHAPROLA_USERNAME,
-                        project: PROJECT,
-                        file: 'votes',
-                        record: {
-                            poll_id: poll_id.substring(0, 12),
-                            option: option.substring(0, 100),
-                            voter_tag: (voter_tag || '').substring(0, 50),
-                            voted_at: voted_at || new Date().toISOString()
-                        }
-                    })
-                });
-
-                if (!insertResponse.ok) {
-                    const errorText = await insertResponse.text();
-                    console.error('Chaprola insert error:', errorText);
-                    return new Response(JSON.stringify({ error: 'Failed to record vote' }), {
-                        status: 500,
-                        headers: corsHeaders
-                    });
-                }
-
-                return new Response(JSON.stringify({ status: 'ok', message: 'Vote recorded' }), {
-                    status: 200,
-                    headers: corsHeaders
-                });
-
-            } else if (action === 'create') {
-                // Validate poll data
-                const { poll_id, title, options, created_by, created_at, status } = body;
-
-                if (!poll_id || typeof poll_id !== 'string' || poll_id.length > 12) {
-                    return new Response(JSON.stringify({ error: 'Invalid poll_id' }), {
-                        status: 400,
-                        headers: corsHeaders
-                    });
-                }
-
-                if (!title || typeof title !== 'string' || title.length > 100) {
-                    return new Response(JSON.stringify({ error: 'Invalid title' }), {
-                        status: 400,
-                        headers: corsHeaders
-                    });
-                }
-
-                if (!options || typeof options !== 'string' || options.length > 500) {
-                    return new Response(JSON.stringify({ error: 'Invalid options' }), {
-                        status: 400,
-                        headers: corsHeaders
-                    });
-                }
-
-                // Insert poll record
-                const insertResponse = await fetch(`${CHAPROLA_API}/insert-record`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        userid: CHAPROLA_USERNAME,
-                        project: PROJECT,
-                        file: 'polls',
-                        record: {
-                            poll_id: poll_id.substring(0, 12),
-                            title: title.substring(0, 100),
-                            options: options.substring(0, 500),
-                            created_by: (created_by || 'anonymous').substring(0, 50),
-                            created_at: created_at || new Date().toISOString(),
-                            status: status || 'open'
-                        }
-                    })
-                });
-
-                if (!insertResponse.ok) {
-                    const errorText = await insertResponse.text();
-                    console.error('Chaprola insert error:', errorText);
-                    return new Response(JSON.stringify({ error: 'Failed to create poll' }), {
-                        status: 500,
-                        headers: corsHeaders
-                    });
-                }
-
-                return new Response(JSON.stringify({ status: 'ok', poll_id: poll_id }), {
-                    status: 200,
-                    headers: corsHeaders
-                });
-
-            } else {
-                return new Response(JSON.stringify({ error: 'Invalid action' }), {
-                    status: 400,
-                    headers: corsHeaders
-                });
-            }
-
-        } catch (error) {
-            console.error('Worker error:', error);
-            return new Response(JSON.stringify({ error: 'Internal server error' }), {
-                status: 500,
-                headers: corsHeaders
-            });
-        }
+  async fetch(request, env) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
     }
+
+    // Only allow POST
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    const apiKey = env.CHAPROLA_API_KEY;
+    if (!apiKey) {
+      console.error('CHAPROLA_API_KEY not configured');
+      return jsonResponse({ error: 'Server configuration error' }, 500);
+    }
+
+    try {
+      const body = await request.json();
+      const { action } = body;
+
+      if (!action) {
+        return jsonResponse({ error: 'Missing action parameter' }, 400);
+      }
+
+      let result;
+
+      switch (action) {
+        case 'vote':
+          result = await handleVote(body, apiKey);
+          break;
+        case 'create_poll':
+          result = await handleCreatePoll(body, apiKey);
+          break;
+        default:
+          return jsonResponse({ error: 'Unknown action' }, 400);
+      }
+
+      return jsonResponse(result, 200);
+
+    } catch (error) {
+      console.error('Proxy error:', error);
+      return jsonResponse({ error: error.message || 'Internal server error' }, 500);
+    }
+  },
 };
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+async function handleVote(body, apiKey) {
+  const { poll_id, option, voter_tag } = body;
+
+  if (!poll_id || typeof poll_id !== 'string') {
+    throw new Error('Invalid poll_id');
+  }
+  if (!option || typeof option !== 'string') {
+    throw new Error('Invalid option');
+  }
+
+  const sanitizedPollId = poll_id.trim().substring(0, 12);
+  const sanitizedOption = option.trim().substring(0, 100);
+  const sanitizedVoterTag = (voter_tag || '').trim().substring(0, 50);
+  const votedAt = new Date().toISOString();
+
+  const response = await fetch(`${CHAPROLA_API}/insert_record`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userid: CHAPROLA_USERNAME,
+      project: 'poll',
+      file: 'votes',
+      record: {
+        poll_id: sanitizedPollId,
+        option: sanitizedOption,
+        voter_tag: sanitizedVoterTag,
+        voted_at: votedAt,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Chaprola error:', error);
+    throw new Error('Failed to record vote');
+  }
+
+  return { status: 'ok', message: 'Vote recorded' };
+}
+
+async function handleCreatePoll(body, apiKey) {
+  const { poll_id, title, options, created_by } = body;
+
+  if (!poll_id || typeof poll_id !== 'string' || poll_id.length < 4) {
+    throw new Error('Invalid poll_id');
+  }
+  if (!title || typeof title !== 'string' || title.length < 3) {
+    throw new Error('Title must be at least 3 characters');
+  }
+  if (!options || typeof options !== 'string') {
+    throw new Error('Invalid options');
+  }
+  if (!created_by || typeof created_by !== 'string') {
+    throw new Error('Invalid created_by');
+  }
+
+  const optionList = options.split('|').filter(o => o.trim());
+  if (optionList.length < 2) {
+    throw new Error('Poll must have at least 2 options');
+  }
+  if (optionList.length > 10) {
+    throw new Error('Poll cannot have more than 10 options');
+  }
+
+  const sanitizedPollId = poll_id.trim().substring(0, 11);
+  const sanitizedTitle = title.trim().substring(0, 100);
+  const sanitizedOptions = optionList.map(o => o.trim().substring(0, 100)).join('|');
+  const sanitizedCreatedBy = created_by.trim().substring(0, 50);
+  const createdAt = new Date().toISOString();
+
+  const response = await fetch(`${CHAPROLA_API}/insert_record`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userid: CHAPROLA_USERNAME,
+      project: 'poll',
+      file: 'polls',
+      record: {
+        poll_id: sanitizedPollId,
+        title: sanitizedTitle,
+        options: sanitizedOptions,
+        created_by: sanitizedCreatedBy,
+        created_at: createdAt,
+        status: 'open',
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Chaprola error:', error);
+    throw new Error('Failed to create poll');
+  }
+
+  return { status: 'ok', poll_id: sanitizedPollId, message: 'Poll created' };
+}

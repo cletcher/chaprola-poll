@@ -1,106 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vote - Chaprola Poll</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vote - Chaprola Poll</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="/" class="logo">Chaprola Poll</a>
-            <div class="nav-links">
-                <a href="/">Home</a>
-                <a href="/create.html">Create Poll</a>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <nav>
+        <a href="/">Browse Polls</a>
+        <a href="/create.html">Create Poll</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="vote-container" class="loading">Loading poll...</div>
+
+    <noscript>
+      <div class="message message-error">
+        JavaScript is required to vote. Please enable JavaScript.
+      </div>
+    </noscript>
+  </main>
+
+  <script>
+    const API_BASE = 'https://api.chaprola.org';
+    const PROXY_BASE = '/api/proxy';
+    const USERID = 'chaprola-poll';
+    const PROJECT = 'poll';
+
+    let currentPoll = null;
+
+    async function loadPoll() {
+      const container = document.getElementById('vote-container');
+      const params = new URLSearchParams(window.location.search);
+      const pollId = params.get('poll');
+
+      if (!pollId) {
+        container.innerHTML = `
+          <div class="message message-error">
+            No poll specified. <a href="/">Browse open polls</a>
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLDETAIL&poll_id=${encodeURIComponent(pollId)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        currentPoll = parsePollDetail(text, pollId);
+
+        if (!currentPoll) {
+          container.innerHTML = `
+            <div class="message message-error">
+              Poll not found. <a href="/">Browse open polls</a>
             </div>
-        </nav>
-    </header>
+          `;
+          return;
+        }
 
-    <main>
-        <div class="vote-container">
-            <div id="vote-content">
-                <div class="loading">Loading poll...</div>
+        document.title = `Vote: ${currentPoll.title} - Chaprola Poll`;
+        renderVoteForm(container);
+
+      } catch (error) {
+        console.error('Failed to load poll:', error);
+        container.innerHTML = `
+          <div class="message message-error">
+            Failed to load poll. Please try again later.
+            <br><small>${escapeHtml(error.message)}</small>
+          </div>
+        `;
+      }
+    }
+
+    function parsePollDetail(text, pollId) {
+      const lines = text.trim().split('\n').filter(line => line.trim());
+      const data = { poll_id: pollId };
+
+      for (const line of lines) {
+        if (line.startsWith('TITLE|')) {
+          data.title = line.substring(6).trim();
+        } else if (line.startsWith('OPTIONS|')) {
+          data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
+        } else if (line.startsWith('STATUS|')) {
+          data.status = line.substring(7).trim();
+        }
+      }
+
+      if (!data.title || !data.options) {
+        return null;
+      }
+
+      return data;
+    }
+
+    function renderVoteForm(container) {
+      const isClosed = currentPoll.status !== 'open';
+
+      container.innerHTML = `
+        <h1>${escapeHtml(currentPoll.title)}</h1>
+
+        ${isClosed ? `
+          <div class="message message-error">
+            This poll is closed. <a href="/results.html?poll=${encodeURIComponent(currentPoll.poll_id)}">View results</a>
+          </div>
+        ` : `
+          <form id="vote-form">
+            <div class="form-group">
+              <label>Choose your option:</label>
+              <div class="vote-options">
+                ${currentPoll.options.map((opt, i) => `
+                  <label class="vote-option" data-option="${i}">
+                    <input type="radio" name="option" value="${escapeHtml(opt)}" required>
+                    <span>${escapeHtml(opt)}</span>
+                  </label>
+                `).join('')}
+              </div>
             </div>
-        </div>
-    </main>
 
-    <footer>
-        <p>Powered by <a href="https://chaprola.org" target="_blank">Chaprola</a></p>
-    </footer>
+            <div class="form-group">
+              <label for="voter-tag">Team or group name (optional)</label>
+              <input type="text" id="voter-tag" name="voter_tag" placeholder="e.g., engineering, design, product">
+            </div>
 
-    <script src="app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const container = document.getElementById('vote-content');
-            const pollId = getQueryParam('poll');
+            <button type="submit" class="btn btn-primary">Submit Vote</button>
+          </form>
 
-            if (!pollId) {
-                container.innerHTML = '<p class="error">No poll specified. <a href="/">Go back to home</a></p>';
-                return;
-            }
+          <div id="vote-message" style="display: none;"></div>
+        `}
+      `;
 
-            try {
-                const poll = await fetchPollDetail(pollId);
+      if (!isClosed) {
+        setupVoteForm();
+      }
+    }
 
-                if (!poll.title) {
-                    container.innerHTML = '<p class="error">Poll not found. <a href="/">Go back to home</a></p>';
-                    return;
-                }
+    function setupVoteForm() {
+      const form = document.getElementById('vote-form');
+      const options = document.querySelectorAll('.vote-option');
 
-                if (poll.status !== 'open') {
-                    container.innerHTML = `
-                        <h1>${escapeHtml(poll.title)}</h1>
-                        <p class="error">This poll is closed.</p>
-                        <p><a href="/results.html?poll=${pollId}" class="btn btn-primary">View Results</a></p>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = `
-                    <h1>${escapeHtml(poll.title)}</h1>
-                    <form class="vote-form" id="vote-form">
-                        <div class="option-group">
-                            ${poll.options.map((option, i) => `
-                                <div class="option-item" onclick="this.querySelector('input').checked = true; document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected')); this.classList.add('selected');">
-                                    <input type="radio" name="option" id="option-${i}" value="${escapeHtml(option)}" required>
-                                    <label for="option-${i}">${escapeHtml(option)}</label>
-                                </div>
-                            `).join('')}
-                        </div>
-
-                        <div class="voter-tag-group">
-                            <label for="voter-tag">Team or group name (optional)</label>
-                            <input type="text" id="voter-tag" name="voter_tag" placeholder="e.g., engineering, design, product" maxlength="50">
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">Submit Vote</button>
-                    </form>
-                `;
-
-                document.getElementById('vote-form').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const form = e.target;
-                    const option = form.option.value;
-                    const voterTag = form.voter_tag.value.trim();
-                    const submitBtn = form.querySelector('button[type="submit"]');
-
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Submitting...';
-
-                    try {
-                        await submitVote(pollId, option, voterTag);
-                        window.location.href = `/results.html?poll=${pollId}&voted=true`;
-                    } catch (error) {
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Submit Vote';
-                        alert('Failed to submit vote: ' + error.message);
-                    }
-                });
-            } catch (error) {
-                container.innerHTML = `<p class="error">Failed to load poll: ${escapeHtml(error.message)}</p>`;
-            }
+      // Highlight selected option
+      options.forEach(opt => {
+        opt.addEventListener('click', () => {
+          options.forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
         });
-    </script>
+      });
+
+      // Handle form submission
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const option = formData.get('option');
+        const voterTag = formData.get('voter_tag') || '';
+
+        if (!option) {
+          showMessage('Please select an option.', 'error');
+          return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        try {
+          const response = await fetch(PROXY_BASE, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              action: 'vote',
+              poll_id: currentPoll.poll_id,
+              option: option,
+              voter_tag: voterTag
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Failed to submit vote');
+          }
+
+          // Redirect to results
+          window.location.href = `/results.html?poll=${encodeURIComponent(currentPoll.poll_id)}&voted=1`;
+
+        } catch (error) {
+          console.error('Failed to submit vote:', error);
+          showMessage(`Failed to submit vote: ${error.message}`, 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Vote';
+        }
+      });
+    }
+
+    function showMessage(text, type) {
+      const messageEl = document.getElementById('vote-message');
+      messageEl.className = `message message-${type}`;
+      messageEl.textContent = text;
+      messageEl.style.display = 'block';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load poll on page load
+    loadPoll();
+  </script>
 </body>
 </html>

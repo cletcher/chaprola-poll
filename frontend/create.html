@@ -1,156 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Poll - Chaprola Poll</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Poll - Chaprola Poll</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="/" class="logo">Chaprola Poll</a>
-            <div class="nav-links">
-                <a href="/">Home</a>
-                <a href="/create.html">Create Poll</a>
-            </div>
-        </nav>
-    </header>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <nav>
+        <a href="/">Browse Polls</a>
+        <a href="/create.html">Create Poll</a>
+      </nav>
+    </div>
+  </header>
 
-    <main>
-        <div class="create-container">
-            <h1>Create a New Poll</h1>
-            <div id="create-content">
-                <form class="create-form" id="create-form">
-                    <div class="form-group">
-                        <label for="title">Poll Title</label>
-                        <input type="text" id="title" name="title" placeholder="What do you want to ask?" required maxlength="100">
-                    </div>
+  <main class="container">
+    <h1>Create a New Poll</h1>
 
-                    <div class="form-group">
-                        <label>Options</label>
-                        <div class="options-list" id="options-list">
-                            <div class="option-input-row">
-                                <input type="text" name="option" placeholder="Option 1" required maxlength="100">
-                                <button type="button" class="btn btn-remove" onclick="removeOption(this)" disabled>Remove</button>
-                            </div>
-                            <div class="option-input-row">
-                                <input type="text" name="option" placeholder="Option 2" required maxlength="100">
-                                <button type="button" class="btn btn-remove" onclick="removeOption(this)" disabled>Remove</button>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-add-option" onclick="addOption()">+ Add Option</button>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="created_by">Your Name or Email</label>
-                        <input type="text" id="created_by" name="created_by" placeholder="Optional - for your reference" maxlength="50">
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Create Poll</button>
-                </form>
-            </div>
+    <div class="card">
+      <form id="create-form">
+        <div class="form-group">
+          <label for="title">Poll Title</label>
+          <input type="text" id="title" name="title" required
+                 placeholder="e.g., What should we order for Friday lunch?">
         </div>
-    </main>
 
-    <footer>
-        <p>Powered by <a href="https://chaprola.org" target="_blank">Chaprola</a></p>
-    </footer>
+        <div class="form-group">
+          <label>Options</label>
+          <div id="options-list" class="options-list">
+            <div class="option-input-row">
+              <input type="text" name="option" placeholder="Option 1" required>
+              <button type="button" class="btn-remove" onclick="removeOption(this)" title="Remove">X</button>
+            </div>
+            <div class="option-input-row">
+              <input type="text" name="option" placeholder="Option 2" required>
+              <button type="button" class="btn-remove" onclick="removeOption(this)" title="Remove">X</button>
+            </div>
+          </div>
+          <button type="button" class="btn-add-option" onclick="addOption()">+ Add Option</button>
+        </div>
 
-    <script src="app.js"></script>
-    <script>
-        let optionCount = 2;
+        <div class="form-group">
+          <label for="created_by">Your Name or Email</label>
+          <input type="text" id="created_by" name="created_by" required
+                 placeholder="e.g., sarah@company.com">
+        </div>
 
-        function updateRemoveButtons() {
-            const rows = document.querySelectorAll('.option-input-row');
-            rows.forEach(row => {
-                const btn = row.querySelector('.btn-remove');
-                btn.disabled = rows.length <= 2;
-            });
-        }
+        <button type="submit" class="btn btn-primary">Create Poll</button>
+      </form>
 
-        function addOption() {
-            if (optionCount >= 10) {
-                alert('Maximum 10 options allowed');
-                return;
-            }
-            optionCount++;
-            const list = document.getElementById('options-list');
-            const row = document.createElement('div');
-            row.className = 'option-input-row';
-            row.innerHTML = `
-                <input type="text" name="option" placeholder="Option ${optionCount}" required maxlength="100">
-                <button type="button" class="btn btn-remove" onclick="removeOption(this)">Remove</button>
-            `;
-            list.appendChild(row);
-            updateRemoveButtons();
-            row.querySelector('input').focus();
-        }
+      <div id="create-message" style="display: none;"></div>
+      <div id="share-section" style="display: none;">
+        <div class="share-box">
+          <label>Share this link with your team:</label>
+          <div class="share-url">
+            <input type="text" id="share-url" readonly>
+            <button type="button" class="btn btn-secondary btn-small" onclick="copyShareUrl()">Copy</button>
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <a id="vote-link" href="#" class="btn btn-primary">Go to Poll</a>
+          <a id="results-link" href="#" class="btn btn-secondary">View Results</a>
+        </div>
+      </div>
+    </div>
 
-        function removeOption(btn) {
-            const rows = document.querySelectorAll('.option-input-row');
-            if (rows.length <= 2) return;
+    <noscript>
+      <div class="message message-error">
+        JavaScript is required to create polls. Please enable JavaScript.
+      </div>
+    </noscript>
+  </main>
 
-            btn.parentElement.remove();
-            optionCount--;
+  <script>
+    const PROXY_BASE = '/api/proxy';
+    let optionCount = 2;
 
-            // Update placeholders
-            document.querySelectorAll('.option-input-row input').forEach((input, i) => {
-                input.placeholder = `Option ${i + 1}`;
-            });
+    function addOption() {
+      optionCount++;
+      const list = document.getElementById('options-list');
+      const row = document.createElement('div');
+      row.className = 'option-input-row';
+      row.innerHTML = `
+        <input type="text" name="option" placeholder="Option ${optionCount}" required>
+        <button type="button" class="btn-remove" onclick="removeOption(this)" title="Remove">X</button>
+      `;
+      list.appendChild(row);
+    }
 
-            updateRemoveButtons();
-        }
+    function removeOption(btn) {
+      const rows = document.querySelectorAll('.option-input-row');
+      if (rows.length <= 2) {
+        showMessage('A poll needs at least 2 options.', 'error');
+        return;
+      }
+      btn.parentElement.remove();
+    }
 
-        document.getElementById('create-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const title = form.title.value.trim();
-            const createdBy = form.created_by.value.trim() || 'anonymous';
-            const optionInputs = form.querySelectorAll('input[name="option"]');
-            const options = Array.from(optionInputs)
-                .map(input => input.value.trim())
-                .filter(opt => opt);
+    function generatePollId() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let id = '';
+      for (let i = 0; i < 8; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return id;
+    }
 
-            if (options.length < 2) {
-                alert('Please provide at least 2 options');
-                return;
-            }
+    document.getElementById('create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-            // Check for duplicate options
-            const uniqueOptions = new Set(options.map(o => o.toLowerCase()));
-            if (uniqueOptions.size !== options.length) {
-                alert('Please remove duplicate options');
-                return;
-            }
+      const form = e.target;
+      const formData = new FormData(form);
 
-            const submitBtn = form.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Creating...';
+      const title = formData.get('title').trim();
+      const createdBy = formData.get('created_by').trim();
+      const options = formData.getAll('option')
+        .map(o => o.trim())
+        .filter(o => o);
 
-            try {
-                const result = await createPoll(title, options, createdBy);
-                const voteUrl = `${window.location.origin}/vote.html?poll=${result.pollId}`;
-                const resultsUrl = `${window.location.origin}/results.html?poll=${result.pollId}`;
+      // Validation
+      if (!title) {
+        showMessage('Please enter a poll title.', 'error');
+        return;
+      }
 
-                document.getElementById('create-content').innerHTML = `
-                    <div class="success-message">
-                        <h2>Poll Created!</h2>
-                        <p>Share this link to start collecting votes:</p>
-                        <div class="share-link">${escapeHtml(voteUrl)}</div>
-                        <div class="share-actions">
-                            <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${voteUrl}'); this.textContent='Copied!';">Copy Link</button>
-                            <a href="${voteUrl}" class="btn btn-vote">Vote Now</a>
-                            <a href="${resultsUrl}" class="btn btn-results">View Results</a>
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Create Poll';
-                alert('Failed to create poll: ' + error.message);
-            }
+      if (options.length < 2) {
+        showMessage('Please add at least 2 options.', 'error');
+        return;
+      }
+
+      // Check for duplicate options
+      const uniqueOptions = new Set(options.map(o => o.toLowerCase()));
+      if (uniqueOptions.size !== options.length) {
+        showMessage('Please remove duplicate options.', 'error');
+        return;
+      }
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating...';
+
+      const pollId = generatePollId();
+
+      try {
+        const response = await fetch(PROXY_BASE, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'create_poll',
+            poll_id: pollId,
+            title: title,
+            options: options.join('|'),
+            created_by: createdBy
+          })
         });
-    </script>
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create poll');
+        }
+
+        // Show success
+        form.style.display = 'none';
+        showMessage('Poll created successfully!', 'success');
+
+        const baseUrl = window.location.origin;
+        const voteUrl = `${baseUrl}/vote.html?poll=${encodeURIComponent(pollId)}`;
+
+        document.getElementById('share-url').value = voteUrl;
+        document.getElementById('vote-link').href = voteUrl;
+        document.getElementById('results-link').href = `${baseUrl}/results.html?poll=${encodeURIComponent(pollId)}`;
+        document.getElementById('share-section').style.display = 'block';
+
+      } catch (error) {
+        console.error('Failed to create poll:', error);
+        showMessage(`Failed to create poll: ${error.message}`, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Poll';
+      }
+    });
+
+    function copyShareUrl() {
+      const input = document.getElementById('share-url');
+      input.select();
+      document.execCommand('copy');
+
+      const btn = input.nextElementSibling;
+      btn.textContent = 'Copied!';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+      }, 2000);
+    }
+
+    function showMessage(text, type) {
+      const messageEl = document.getElementById('create-message');
+      messageEl.className = `message message-${type}`;
+      messageEl.textContent = text;
+      messageEl.style.display = 'block';
+    }
+  </script>
 </body>
 </html>

@@ -1,6 +1,11 @@
+# Cloudflare Worker configuration for Chaprola Poll Proxy
+
 name = "chaprola-poll-proxy"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
-# Set the secret with: wrangler secret put CHAPROLA_API_KEY
-# Then enter your API key when prompted
+# Set this secret via: wrangler secret put CHAPROLA_API_KEY
+# The value should be your Chaprola API key (starts with chp_)
+
+[vars]
+# No public vars needed - API key is a secret

@@ -1,171 +1,275 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Results - Chaprola Poll</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Results - Chaprola Poll</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="/" class="logo">Chaprola Poll</a>
-            <div class="nav-links">
-                <a href="/">Home</a>
-                <a href="/create.html">Create Poll</a>
-            </div>
-        </nav>
-    </header>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <nav>
+        <a href="/">Browse Polls</a>
+        <a href="/create.html">Create Poll</a>
+      </nav>
+    </div>
+  </header>
 
-    <main>
-        <div class="results-container">
-            <div id="results-content">
-                <div class="loading">Loading results...</div>
-            </div>
-        </div>
-    </main>
+  <main class="container">
+    <div id="results-container" class="loading">Loading results...</div>
 
-    <footer>
-        <p>Powered by <a href="https://chaprola.org" target="_blank">Chaprola</a></p>
-    </footer>
+    <noscript>
+      <div class="message message-error">
+        JavaScript is required to view live results. Please enable JavaScript.
+      </div>
+    </noscript>
+  </main>
 
-    <script src="app.js"></script>
-    <script>
-        let refreshInterval = null;
-        let pollId = null;
+  <script>
+    const API_BASE = 'https://api.chaprola.org';
+    const USERID = 'chaprola-poll';
+    const PROJECT = 'poll';
 
-        async function loadResults() {
-            const container = document.getElementById('results-content');
+    let currentPollId = null;
+    let refreshInterval = null;
 
-            try {
-                const [poll, results] = await Promise.all([
-                    fetchPollDetail(pollId),
-                    fetchResults(pollId)
-                ]);
+    async function loadResults() {
+      const container = document.getElementById('results-container');
+      const params = new URLSearchParams(window.location.search);
+      currentPollId = params.get('poll');
+      const justVoted = params.get('voted') === '1';
 
-                if (!poll.title) {
-                    container.innerHTML = '<p class="error">Poll not found. <a href="/">Go back to home</a></p>';
-                    if (refreshInterval) clearInterval(refreshInterval);
-                    return;
-                }
+      if (!currentPollId) {
+        container.innerHTML = `
+          <div class="message message-error">
+            No poll specified. <a href="/">Browse open polls</a>
+          </div>
+        `;
+        return;
+      }
 
-                const maxCount = Math.max(...Object.values(results.counts), 1);
-                const voted = getQueryParam('voted') === 'true';
+      // Show success message if just voted
+      if (justVoted) {
+        // Remove the voted param from URL
+        const newUrl = window.location.pathname + '?poll=' + encodeURIComponent(currentPollId);
+        window.history.replaceState({}, '', newUrl);
+      }
 
-                let html = `
-                    <h1>${escapeHtml(poll.title)}</h1>
-                    <div class="results-meta">
-                        <span>${results.total} vote${results.total !== 1 ? 's' : ''}</span>
-                        ${poll.status === 'open' ? '<span class="auto-refresh">Auto-refreshes every 10s</span>' : ''}
-                    </div>
-                    ${voted ? '<p style="color: var(--color-accent); margin-bottom: 1rem;">Your vote has been recorded!</p>' : ''}
-                    <div class="results-card">
-                        <h2>Vote Distribution</h2>
-                `;
+      await fetchAndRenderResults(justVoted);
 
-                // Get all options from the poll, not just voted ones
-                const allOptions = poll.options || Object.keys(results.counts);
+      // Set up auto-refresh every 10 seconds
+      refreshInterval = setInterval(() => fetchAndRenderResults(false), 10000);
+    }
 
-                for (const option of allOptions) {
-                    const count = results.counts[option] || 0;
-                    const percentage = results.total > 0 ? (count / results.total * 100) : 0;
+    async function fetchAndRenderResults(showVoteSuccess) {
+      const container = document.getElementById('results-container');
 
-                    html += `
-                        <div class="result-item">
-                            <div class="result-header">
-                                <span class="result-option">${escapeHtml(option)}</span>
-                                <span class="result-count">${count} (${percentage.toFixed(1)}%)</span>
-                            </div>
-                            <div class="result-bar-bg">
-                                <div class="result-bar" style="width: ${(count / maxCount * 100)}%"></div>
-                            </div>
-                        </div>
-                    `;
-                }
+      try {
+        // First get poll details
+        const detailUrl = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLDETAIL&poll_id=${encodeURIComponent(currentPollId)}`;
+        const detailResponse = await fetch(detailUrl);
+        const detailText = await detailResponse.text();
+        const pollDetail = parsePollDetail(detailText);
 
-                html += `
-                        <div class="result-total">
-                            <span>Total Votes</span>
-                            <span class="count">${results.total}</span>
-                        </div>
-                    </div>
-                `;
+        // Then get votes
+        const resultsUrl = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=RESULTS&poll_id=${encodeURIComponent(currentPollId)}`;
+        const resultsResponse = await fetch(resultsUrl);
+        const resultsText = await resultsResponse.text();
+        const votes = parseVotes(resultsText);
 
-                // Cross-tabulation if voter tags exist
-                if (results.voterTags.length > 0) {
-                    html += `
-                        <div class="results-card">
-                            <h2>Votes by Group</h2>
-                            <div class="crosstab">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Option</th>
-                                            ${results.voterTags.map(tag => `<th>${escapeHtml(tag)}</th>`).join('')}
-                                            <th>Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                    `;
+        // Aggregate votes
+        const aggregated = aggregateVotes(votes, pollDetail ? pollDetail.options : []);
+        const crossTab = buildCrossTab(votes);
 
-                    for (const option of allOptions) {
-                        const optionByTag = results.byTag[option] || {};
-                        const optionTotal = results.counts[option] || 0;
+        document.title = `Results: ${pollDetail?.title || currentPollId} - Chaprola Poll`;
 
-                        html += `
-                            <tr>
-                                <td>${escapeHtml(option)}</td>
-                                ${results.voterTags.map(tag => `<td>${optionByTag[tag] || 0}</td>`).join('')}
-                                <td><strong>${optionTotal}</strong></td>
-                            </tr>
-                        `;
-                    }
+        renderResults(container, pollDetail, aggregated, crossTab, showVoteSuccess);
 
-                    html += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    `;
-                }
+      } catch (error) {
+        console.error('Failed to load results:', error);
+        container.innerHTML = `
+          <div class="message message-error">
+            Failed to load results. Please try again later.
+            <br><small>${escapeHtml(error.message)}</small>
+          </div>
+        `;
+      }
+    }
 
-                // Share link
-                const voteUrl = `${window.location.origin}/vote.html?poll=${pollId}`;
-                html += `
-                    <div class="results-card">
-                        <h2>Share this Poll</h2>
-                        <div class="share-link">${escapeHtml(voteUrl)}</div>
-                        <div class="share-actions">
-                            <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${voteUrl}'); this.textContent='Copied!';">Copy Link</button>
-                            <a href="/vote.html?poll=${pollId}" class="btn btn-vote">Vote</a>
-                        </div>
-                    </div>
-                `;
+    function parsePollDetail(text) {
+      const lines = text.trim().split('\n').filter(line => line.trim());
+      const data = {};
 
-                container.innerHTML = html;
-
-                // Stop auto-refresh if poll is closed
-                if (poll.status !== 'open' && refreshInterval) {
-                    clearInterval(refreshInterval);
-                }
-            } catch (error) {
-                container.innerHTML = `<p class="error">Failed to load results: ${escapeHtml(error.message)}</p>`;
-            }
+      for (const line of lines) {
+        if (line.startsWith('TITLE|')) {
+          data.title = line.substring(6).trim();
+        } else if (line.startsWith('OPTIONS|')) {
+          data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
+        } else if (line.startsWith('STATUS|')) {
+          data.status = line.substring(7).trim();
         }
+      }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            pollId = getQueryParam('poll');
+      return data.title ? data : null;
+    }
 
-            if (!pollId) {
-                document.getElementById('results-content').innerHTML = '<p class="error">No poll specified. <a href="/">Go back to home</a></p>';
-                return;
-            }
+    function parseVotes(text) {
+      const lines = text.trim().split('\n').filter(line => line.trim());
+      const votes = [];
 
-            await loadResults();
+      for (const line of lines) {
+        if (line.startsWith('VOTE|')) {
+          const parts = line.substring(5).split('|');
+          if (parts.length >= 1) {
+            votes.push({
+              option: parts[0].trim(),
+              voter_tag: parts.length > 1 ? parts[1].trim() : ''
+            });
+          }
+        }
+      }
 
-            // Auto-refresh every 10 seconds
-            refreshInterval = setInterval(loadResults, 10000);
-        });
-    </script>
+      return votes;
+    }
+
+    function aggregateVotes(votes, options) {
+      const counts = {};
+
+      // Initialize with all poll options (so we show 0 for options with no votes)
+      for (const opt of options) {
+        counts[opt] = 0;
+      }
+
+      // Count votes
+      for (const vote of votes) {
+        const opt = vote.option;
+        counts[opt] = (counts[opt] || 0) + 1;
+      }
+
+      // Convert to sorted array
+      const results = Object.entries(counts).map(([option, count]) => ({
+        option,
+        count
+      }));
+
+      // Sort by count descending
+      results.sort((a, b) => b.count - a.count);
+
+      return results;
+    }
+
+    function buildCrossTab(votes) {
+      // Only build cross-tab if we have voter_tag data
+      const tagsWithValues = votes.filter(v => v.voter_tag);
+      if (tagsWithValues.length === 0) {
+        return null;
+      }
+
+      const tags = [...new Set(votes.map(v => v.voter_tag).filter(t => t))].sort();
+      const options = [...new Set(votes.map(v => v.option))].sort();
+
+      const table = {};
+      for (const opt of options) {
+        table[opt] = {};
+        for (const tag of tags) {
+          table[opt][tag] = 0;
+        }
+      }
+
+      for (const vote of votes) {
+        if (vote.voter_tag) {
+          table[vote.option][vote.voter_tag]++;
+        }
+      }
+
+      return { tags, options, table };
+    }
+
+    function renderResults(container, pollDetail, aggregated, crossTab, showVoteSuccess) {
+      const total = aggregated.reduce((sum, r) => sum + r.count, 0);
+      const maxCount = Math.max(...aggregated.map(r => r.count), 1);
+      const winnerCount = aggregated.length > 0 ? aggregated[0].count : 0;
+
+      container.innerHTML = `
+        ${showVoteSuccess ? `
+          <div class="message message-success">
+            Your vote has been recorded!
+          </div>
+        ` : ''}
+
+        <h1>${escapeHtml(pollDetail?.title || currentPollId)}</h1>
+
+        ${pollDetail?.status === 'open' ? `
+          <p><span class="status status-open">Open</span> <a href="/vote.html?poll=${encodeURIComponent(currentPollId)}">Cast your vote</a></p>
+        ` : `
+          <p><span class="status status-closed">Closed</span></p>
+        `}
+
+        <div class="total-votes">${total.toLocaleString()} vote${total !== 1 ? 's' : ''}</div>
+
+        <div class="results-chart">
+          ${aggregated.map(r => {
+            const percentage = total > 0 ? Math.round((r.count / total) * 100) : 0;
+            const barWidth = total > 0 ? Math.round((r.count / maxCount) * 100) : 0;
+            const isWinner = r.count === winnerCount && r.count > 0;
+
+            return `
+              <div class="result-row">
+                <div class="result-label">
+                  <span class="result-option">${escapeHtml(r.option)}</span>
+                  <span class="result-count">${r.count} (${percentage}%)</span>
+                </div>
+                <div class="result-bar-bg">
+                  <div class="result-bar ${isWinner ? 'winner' : ''}" style="width: ${barWidth}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        ${crossTab ? `
+          <h2>Votes by Group</h2>
+          <table class="crosstab">
+            <thead>
+              <tr>
+                <th>Option</th>
+                ${crossTab.tags.map(t => `<th>${escapeHtml(t)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${crossTab.options.map(opt => `
+                <tr>
+                  <td>${escapeHtml(opt)}</td>
+                  ${crossTab.tags.map(t => `<td>${crossTab.table[opt][t] || 0}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="refresh-indicator">
+          Auto-refreshing every 10 seconds
+        </div>
+      `;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load results on page load
+    loadResults();
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    });
+  </script>
 </body>
 </html>
