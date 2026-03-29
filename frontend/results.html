@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Results - Chaprola Poll</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="api/proxy.js"></script>
 </head>
 <body>
   <header>
     <div class="container">
-      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <a href="./" class="logo">Chaprola<span>Poll</span></a>
       <nav>
-        <a href="/">Browse Polls</a>
-        <a href="/create.html">Create Poll</a>
+        <a href="./">Browse Polls</a>
+        <a href="create.html">Create Poll</a>
       </nav>
     </div>
   </header>
@@ -42,24 +43,16 @@
       const justVoted = params.get('voted') === '1';
 
       if (!currentPollId) {
-        container.innerHTML = `
-          <div class="message message-error">
-            No poll specified. <a href="/">Browse open polls</a>
-          </div>
-        `;
+        container.innerHTML = '<div class="message message-error">No poll specified. <a href="./">Browse open polls</a></div>';
         return;
       }
 
-      // Show success message if just voted
       if (justVoted) {
-        // Remove the voted param from URL
         const newUrl = window.location.pathname + '?poll=' + encodeURIComponent(currentPollId);
         window.history.replaceState({}, '', newUrl);
       }
 
       await fetchAndRenderResults(justVoted);
-
-      // Set up auto-refresh every 10 seconds
       refreshInterval = setInterval(() => fetchAndRenderResults(false), 10000);
     }
 
@@ -67,191 +60,107 @@
       const container = document.getElementById('results-container');
 
       try {
-        // First get poll details
+        // Get poll details from published report (public, no auth needed)
         const detailUrl = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLDETAIL&poll_id=${encodeURIComponent(currentPollId)}`;
         const detailResponse = await fetch(detailUrl);
         const detailText = await detailResponse.text();
         const pollDetail = parsePollDetail(detailText);
 
-        // Then get votes
-        const resultsUrl = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=RESULTS&poll_id=${encodeURIComponent(currentPollId)}`;
-        const resultsResponse = await fetch(resultsUrl);
-        const resultsText = await resultsResponse.text();
-        const votes = parseVotes(resultsText);
-
-        // Aggregate votes
-        const aggregated = aggregateVotes(votes, pollDetail ? pollDetail.options : []);
-        const crossTab = buildCrossTab(votes);
+        // Get results via /query with server-side pivot (showcases Chaprola's GROUP BY)
+        const pivotData = await ChaprolaProxy.getResults(currentPollId);
 
         document.title = `Results: ${pollDetail?.title || currentPollId} - Chaprola Poll`;
-
-        renderResults(container, pollDetail, aggregated, crossTab, showVoteSuccess);
+        renderResults(container, pollDetail, pivotData, showVoteSuccess);
 
       } catch (error) {
         console.error('Failed to load results:', error);
-        container.innerHTML = `
-          <div class="message message-error">
-            Failed to load results. Please try again later.
-            <br><small>${escapeHtml(error.message)}</small>
-          </div>
-        `;
+        container.innerHTML = `<div class="message message-error">Failed to load results. Please try again later.<br><small>${escapeHtml(error.message)}</small></div>`;
       }
     }
 
     function parsePollDetail(text) {
       const lines = text.trim().split('\n').filter(line => line.trim());
       const data = {};
-
       for (const line of lines) {
-        if (line.startsWith('TITLE|')) {
-          data.title = line.substring(6).trim();
-        } else if (line.startsWith('OPTIONS|')) {
-          data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
-        } else if (line.startsWith('STATUS|')) {
-          data.status = line.substring(7).trim();
-        }
+        if (line.startsWith('TITLE|')) data.title = line.substring(6).trim();
+        else if (line.startsWith('OPTIONS|')) data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
+        else if (line.startsWith('STATUS|')) data.status = line.substring(7).trim();
       }
-
       return data.title ? data : null;
     }
 
-    function parseVotes(text) {
-      const lines = text.trim().split('\n').filter(line => line.trim());
-      const votes = [];
+    function renderResults(container, pollDetail, pivotData, showVoteSuccess) {
+      const rows = pivotData.pivot.rows || [];
+      const rowTotals = pivotData.pivot.row_totals || [];
+      const grandTotal = pivotData.pivot.grand_total || 0;
+      const columns = pivotData.pivot.columns || [];
+      const values = pivotData.pivot.values || [];
+      const maxCount = Math.max(...rowTotals, 1);
 
-      for (const line of lines) {
-        if (line.startsWith('VOTE|')) {
-          const parts = line.substring(5).split('|');
-          if (parts.length >= 1) {
-            votes.push({
-              option: parts[0].trim(),
-              voter_tag: parts.length > 1 ? parts[1].trim() : ''
-            });
-          }
-        }
-      }
+      // Build bar chart from pivot row_totals
+      const barChart = rows.map((option, i) => {
+        const count = rowTotals[i] || 0;
+        const percentage = grandTotal > 0 ? Math.round((count / grandTotal) * 100) : 0;
+        const barWidth = grandTotal > 0 ? Math.round((count / maxCount) * 100) : 0;
+        const isWinner = count === Math.max(...rowTotals) && count > 0;
 
-      return votes;
-    }
-
-    function aggregateVotes(votes, options) {
-      const counts = {};
-
-      // Initialize with all poll options (so we show 0 for options with no votes)
-      for (const opt of options) {
-        counts[opt] = 0;
-      }
-
-      // Count votes
-      for (const vote of votes) {
-        const opt = vote.option;
-        counts[opt] = (counts[opt] || 0) + 1;
-      }
-
-      // Convert to sorted array
-      const results = Object.entries(counts).map(([option, count]) => ({
-        option,
-        count
-      }));
-
-      // Sort by count descending
-      results.sort((a, b) => b.count - a.count);
-
-      return results;
-    }
-
-    function buildCrossTab(votes) {
-      // Only build cross-tab if we have voter_tag data
-      const tagsWithValues = votes.filter(v => v.voter_tag);
-      if (tagsWithValues.length === 0) {
-        return null;
-      }
-
-      const tags = [...new Set(votes.map(v => v.voter_tag).filter(t => t))].sort();
-      const options = [...new Set(votes.map(v => v.option))].sort();
-
-      const table = {};
-      for (const opt of options) {
-        table[opt] = {};
-        for (const tag of tags) {
-          table[opt][tag] = 0;
-        }
-      }
-
-      for (const vote of votes) {
-        if (vote.voter_tag) {
-          table[vote.option][vote.voter_tag]++;
-        }
-      }
-
-      return { tags, options, table };
-    }
-
-    function renderResults(container, pollDetail, aggregated, crossTab, showVoteSuccess) {
-      const total = aggregated.reduce((sum, r) => sum + r.count, 0);
-      const maxCount = Math.max(...aggregated.map(r => r.count), 1);
-      const winnerCount = aggregated.length > 0 ? aggregated[0].count : 0;
-
-      container.innerHTML = `
-        ${showVoteSuccess ? `
-          <div class="message message-success">
-            Your vote has been recorded!
+        return `
+          <div class="result-row">
+            <div class="result-label">
+              <span class="result-option">${escapeHtml(option)}</span>
+              <span class="result-count">${count} (${percentage}%)</span>
+            </div>
+            <div class="result-bar-bg">
+              <div class="result-bar ${isWinner ? 'winner' : ''}" style="width: ${barWidth}%"></div>
+            </div>
           </div>
-        ` : ''}
+        `;
+      }).join('');
 
-        <h1>${escapeHtml(pollDetail?.title || currentPollId)}</h1>
+      // Build cross-tabulation table from pivot columns/values
+      // Filter out the empty-string column for display (anonymous votes)
+      const namedColumns = columns.filter(c => c !== '');
+      const hasGroups = namedColumns.length > 0;
 
-        ${pollDetail?.status === 'open' ? `
-          <p><span class="status status-open">Open</span> <a href="/vote.html?poll=${encodeURIComponent(currentPollId)}">Cast your vote</a></p>
-        ` : `
-          <p><span class="status status-closed">Closed</span></p>
-        `}
-
-        <div class="total-votes">${total.toLocaleString()} vote${total !== 1 ? 's' : ''}</div>
-
-        <div class="results-chart">
-          ${aggregated.map(r => {
-            const percentage = total > 0 ? Math.round((r.count / total) * 100) : 0;
-            const barWidth = total > 0 ? Math.round((r.count / maxCount) * 100) : 0;
-            const isWinner = r.count === winnerCount && r.count > 0;
-
-            return `
-              <div class="result-row">
-                <div class="result-label">
-                  <span class="result-option">${escapeHtml(r.option)}</span>
-                  <span class="result-count">${r.count} (${percentage}%)</span>
-                </div>
-                <div class="result-bar-bg">
-                  <div class="result-bar ${isWinner ? 'winner' : ''}" style="width: ${barWidth}%"></div>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        ${crossTab ? `
+      let crossTabHtml = '';
+      if (hasGroups) {
+        const emptyIdx = columns.indexOf('');
+        crossTabHtml = `
           <h2>Votes by Group</h2>
+          <p class="pivot-note">Aggregated server-side by Chaprola /query pivot</p>
           <table class="crosstab">
             <thead>
               <tr>
                 <th>Option</th>
-                ${crossTab.tags.map(t => `<th>${escapeHtml(t)}</th>`).join('')}
+                ${namedColumns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
-              ${crossTab.options.map(opt => `
+              ${rows.map((opt, ri) => `
                 <tr>
                   <td>${escapeHtml(opt)}</td>
-                  ${crossTab.tags.map(t => `<td>${crossTab.table[opt][t] || 0}</td>`).join('')}
+                  ${namedColumns.map(col => {
+                    const ci = columns.indexOf(col);
+                    return `<td>${values[ri] ? values[ri][ci] || 0 : 0}</td>`;
+                  }).join('')}
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        ` : ''}
+        `;
+      }
 
-        <div class="refresh-indicator">
-          Auto-refreshing every 10 seconds
-        </div>
+      container.innerHTML = `
+        ${showVoteSuccess ? '<div class="message message-success">Your vote has been recorded!</div>' : ''}
+        <h1>${escapeHtml(pollDetail?.title || currentPollId)}</h1>
+        ${pollDetail?.status === 'open'
+          ? `<p><span class="status status-open">Open</span> <a href="vote.html?poll=${encodeURIComponent(currentPollId)}">Cast your vote</a></p>`
+          : '<p><span class="status status-closed">Closed</span></p>'
+        }
+        <div class="total-votes">${grandTotal.toLocaleString()} vote${grandTotal !== 1 ? 's' : ''}</div>
+        <div class="results-chart">${barChart}</div>
+        ${crossTabHtml}
+        <div class="refresh-indicator">Auto-refreshing every 10 seconds</div>
       `;
     }
 
@@ -261,15 +170,8 @@
       return div.innerHTML;
     }
 
-    // Load results on page load
     loadResults();
-
-    // Clean up on page unload
-    window.addEventListener('beforeunload', () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    });
+    window.addEventListener('beforeunload', () => { if (refreshInterval) clearInterval(refreshInterval); });
   </script>
 </body>
 </html>

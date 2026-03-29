@@ -9,10 +9,10 @@
 <body>
   <header>
     <div class="container">
-      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <a href="./" class="logo">Chaprola<span>Poll</span></a>
       <nav>
-        <a href="/">Browse Polls</a>
-        <a href="/create.html">Create Poll</a>
+        <a href="./">Browse Polls</a>
+        <a href="create.html">Create Poll</a>
       </nav>
     </div>
   </header>
@@ -50,7 +50,7 @@
         const polls = parsePolls(text);
 
         if (polls.length === 0) {
-          container.innerHTML = '<div class="card"><p>No open polls at the moment. <a href="/create.html">Create one!</a></p></div>';
+          container.innerHTML = '<div class="card"><p>No open polls at the moment. <a href="create.html">Create one!</a></p></div>';
           return;
         }
 
@@ -59,14 +59,13 @@
             <h3 class="card-title">${escapeHtml(poll.title)}</h3>
             <div class="card-meta">
               <span class="status status-open">Open</span>
-              Created ${formatDate(poll.created_at)}
             </div>
             <div class="card-options">
               ${poll.options.map(opt => `<span class="option-tag">${escapeHtml(opt)}</span>`).join('')}
             </div>
             <div>
-              <a href="/vote.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-primary btn-small">Vote</a>
-              <a href="/results.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-secondary btn-small">Results</a>
+              <a href="vote.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-primary btn-small">Vote</a>
+              <a href="results.html?poll=${encodeURIComponent(poll.poll_id)}" class="btn btn-secondary btn-small">Results</a>
             </div>
           </div>
         `).join('');
@@ -85,15 +84,16 @@
     function parsePolls(text) {
       const lines = text.trim().split('\n').filter(line => line.trim());
       return lines.map(line => {
-        // Format: poll_id|title|options|created_at
-        const parts = line.split('|');
-        if (parts.length < 4) return null;
+        // Format: POLL|poll_id|title|options (pipe-separated)
+        if (!line.startsWith('POLL|')) return null;
+        const content = line.substring(5);
+        const parts = content.split('|');
+        if (parts.length < 3) return null;
 
         return {
           poll_id: parts[0].trim(),
           title: parts[1].trim(),
-          options: parts.slice(2, -1).map(o => o.trim()).filter(o => o),
-          created_at: parts[parts.length - 1].trim()
+          options: parts.slice(2).map(o => o.trim()).filter(o => o)
         };
       }).filter(p => p !== null);
     }

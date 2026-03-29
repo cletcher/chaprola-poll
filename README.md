@@ -72,7 +72,62 @@ chaprola-poll/
 
 ## Deployment
 
-Deploy to Chaprola app hosting via MCP tools (`chaprola_app_deploy`). The app is hosted at `chaprola.org/apps/{userid}/{project}/`.
+### Deploy Your Own Instance
+
+1. **Register a Chaprola account**:
+   ```bash
+   curl -X POST https://api.chaprola.org/register \
+     -d '{"username":"your-username","passcode":"your-secure-passcode-16chars"}'
+   ```
+
+2. **Import the data schema** (creates polls and votes files):
+   ```bash
+   # Use MCP tools or API to import sample data
+   chaprola_import(project="poll", name="polls", data=[...])
+   chaprola_import(project="poll", name="votes", data=[...])
+   ```
+
+3. **Compile and publish programs**:
+   ```bash
+   chaprola_compile(project="poll", name="POLLLIST", source="...", primary_format="polls")
+   chaprola_publish(project="poll", name="POLLLIST", primary_file="polls", acl="public")
+   ```
+
+4. **Update frontend/api/proxy.js** with your API key
+
+5. **Deploy the frontend**:
+   ```bash
+   cd frontend && tar -czf /tmp/frontend.tar.gz .
+
+   # Get presigned URL
+   curl -X POST https://api.chaprola.org/app/deploy \
+     -H "Authorization: Bearer $YOUR_API_KEY" \
+     -d '{"userid":"your-username","project":"poll"}'
+
+   # Upload tarball
+   curl -X PUT "$UPLOAD_URL" --data-binary @/tmp/frontend.tar.gz
+
+   # Process deployment
+   curl -X POST https://api.chaprola.org/app/deploy/process \
+     -H "Authorization: Bearer $YOUR_API_KEY" \
+     -d '{"userid":"your-username","project":"poll","staging_key":"..."}'
+   ```
+
+6. **Visit your app** at `https://chaprola.org/apps/your-username/poll/`
+
+### Important: Relative Paths
+
+All internal links must use relative paths (not root-relative) because the app deploys to a subpath:
+
+```html
+<!-- Correct -->
+<a href="vote.html">Vote</a>
+<a href="./">Home</a>
+
+<!-- Wrong - will break! -->
+<a href="/vote.html">Vote</a>
+<a href="/">Home</a>
+```
 
 ---
 

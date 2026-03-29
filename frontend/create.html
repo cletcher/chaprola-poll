@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Poll - Chaprola Poll</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="api/proxy.js"></script>
 </head>
 <body>
   <header>
     <div class="container">
-      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <a href="./" class="logo">Chaprola<span>Poll</span></a>
       <nav>
-        <a href="/">Browse Polls</a>
-        <a href="/create.html">Create Poll</a>
+        <a href="./">Browse Polls</a>
+        <a href="create.html">Create Poll</a>
       </nav>
     </div>
   </header>
@@ -76,7 +77,6 @@
   </main>
 
   <script>
-    const PROXY_BASE = '/api/proxy';
     let optionCount = 2;
 
     function addOption() {
@@ -146,36 +146,19 @@
       const pollId = generatePollId();
 
       try {
-        const response = await fetch(PROXY_BASE, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'create_poll',
-            poll_id: pollId,
-            title: title,
-            options: options.join('|'),
-            created_by: createdBy
-          })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to create poll');
-        }
+        await ChaprolaProxy.createPoll(pollId, title, options.join('|'), createdBy);
 
         // Show success
         form.style.display = 'none';
         showMessage('Poll created successfully!', 'success');
 
-        const baseUrl = window.location.origin;
-        const voteUrl = `${baseUrl}/vote.html?poll=${encodeURIComponent(pollId)}`;
+        // Use relative URLs for the app (deployed to subpath)
+        const baseUrl = window.location.href.replace(/[^\/]*$/, '');
+        const voteUrl = `${baseUrl}vote.html?poll=${encodeURIComponent(pollId)}`;
 
         document.getElementById('share-url').value = voteUrl;
-        document.getElementById('vote-link').href = voteUrl;
-        document.getElementById('results-link').href = `${baseUrl}/results.html?poll=${encodeURIComponent(pollId)}`;
+        document.getElementById('vote-link').href = `vote.html?poll=${encodeURIComponent(pollId)}`;
+        document.getElementById('results-link').href = `results.html?poll=${encodeURIComponent(pollId)}`;
         document.getElementById('share-section').style.display = 'block';
 
       } catch (error) {

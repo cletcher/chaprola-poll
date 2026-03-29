@@ -175,3 +175,17 @@ For a v2 of the docs, I'd recommend:
 4. A clear "common patterns" section for output formatting
 
 Despite the learning curve, once I understood the model, development was fast. The publish/report pattern for public APIs is elegant, and the MCP integration makes iteration quick.
+
+## Security Note: Static Hosting Limitation
+
+Chaprola app hosting is static-only, which means there's no server-side code to protect API keys. For this demo, the API key is embedded in client-side JavaScript (`frontend/api/proxy.js`). This is **NOT secure for production**.
+
+For a production app, you would need to:
+1. Host a backend proxy elsewhere (AWS Lambda, Cloudflare Workers, etc.)
+2. Or use Chaprola's token-based ACL if/when it supports authenticated inserts
+3. Or implement rate limiting and key rotation if client-side keys are acceptable for your use case
+
+The Chaprola platform would benefit from:
+- **Serverless function support** in app hosting
+- **Token-scoped write permissions** for published reports
+- **Webhook triggers** that could accept public POSTs and validate them server-side

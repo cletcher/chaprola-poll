@@ -7,8 +7,9 @@ A step-by-step narrative of building a full-stack poll application with Chaprola
 This document describes the journey of building Chaprola Poll, a real-time voting application. The stack:
 - **Backend**: Chaprola (serverless data platform via MCP)
 - **Frontend**: Vanilla HTML/CSS/JavaScript (no framework)
-- **Proxy**: Vercel serverless function (for authenticated operations)
-- **Hosting**: Vercel
+- **Hosting**: Chaprola app hosting (chaprola.org/apps/)
+
+**Live URL**: https://chaprola.org/apps/chaprola-poll/poll/
 
 ## Step 1: Understanding Chaprola
 
@@ -318,20 +319,17 @@ const response = await fetch(`${CHAPROLA_API}/insert_record`, {
 [Browser]
     |
     v
-[Vercel Static Hosting]
+[Chaprola App Hosting]
     |-- index.html (polls list)
     |-- vote.html (voting form)
     |-- results.html (live results)
     |-- create.html (new poll form)
-    |
-    v
-[Vercel Serverless Function]
-    |-- /api/proxy (handles vote/create)
+    |-- api/proxy.js (client-side API wrapper)
     |
     v
 [Chaprola API]
     |-- /report (public, runs published programs)
-    |-- /insert_record (authenticated)
+    |-- /insert_record (authenticated via client-side key*)
     |
     v
 [Chaprola Storage]
@@ -340,7 +338,31 @@ const response = await fetch(`${CHAPROLA_API}/insert_record`, {
     |-- POLLLIST.PR, POLLDETAIL.PR, RESULTS.PR
 ```
 
+*Note: For this demo, the API key is embedded client-side since Chaprola app hosting is static-only. In production, use a proper backend proxy.
+
+## Deployment to Chaprola App Hosting
+
+```bash
+# 1. Create tarball
+cd frontend && tar -czf /tmp/frontend.tar.gz .
+
+# 2. Get presigned URL
+curl -X POST https://api.chaprola.org/app/deploy \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"userid":"chaprola-poll","project":"poll"}'
+# Returns: {"upload_url":"...", "staging_key":"..."}
+
+# 3. Upload
+curl -X PUT "$UPLOAD_URL" --data-binary @/tmp/frontend.tar.gz
+
+# 4. Process deployment
+curl -X POST https://api.chaprola.org/app/deploy/process \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"userid":"chaprola-poll","project":"poll","staging_key":"..."}'
+# Returns: {"url":"https://chaprola.org/apps/chaprola-poll/poll/"}
+```
+
 Total lines of code:
 - Frontend HTML/CSS/JS: ~600 lines
-- Proxy: ~120 lines
+- Client proxy: ~60 lines
 - Chaprola programs: ~80 lines combined

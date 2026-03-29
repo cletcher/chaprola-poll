@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vote - Chaprola Poll</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="api/proxy.js"></script>
 </head>
 <body>
   <header>
     <div class="container">
-      <a href="/" class="logo">Chaprola<span>Poll</span></a>
+      <a href="./" class="logo">Chaprola<span>Poll</span></a>
       <nav>
-        <a href="/">Browse Polls</a>
-        <a href="/create.html">Create Poll</a>
+        <a href="./">Browse Polls</a>
+        <a href="create.html">Create Poll</a>
       </nav>
     </div>
   </header>
@@ -29,7 +30,6 @@
 
   <script>
     const API_BASE = 'https://api.chaprola.org';
-    const PROXY_BASE = '/api/proxy';
     const USERID = 'chaprola-poll';
     const PROJECT = 'poll';
 
@@ -43,7 +43,7 @@
       if (!pollId) {
         container.innerHTML = `
           <div class="message message-error">
-            No poll specified. <a href="/">Browse open polls</a>
+            No poll specified. <a href="./">Browse open polls</a>
           </div>
         `;
         return;
@@ -63,7 +63,7 @@
         if (!currentPoll) {
           container.innerHTML = `
             <div class="message message-error">
-              Poll not found. <a href="/">Browse open polls</a>
+              Poll not found. <a href="./">Browse open polls</a>
             </div>
           `;
           return;
@@ -112,7 +112,7 @@
 
         ${isClosed ? `
           <div class="message message-error">
-            This poll is closed. <a href="/results.html?poll=${encodeURIComponent(currentPoll.poll_id)}">View results</a>
+            This poll is closed. <a href="results.html?poll=${encodeURIComponent(currentPoll.poll_id)}">View results</a>
           </div>
         ` : `
           <form id="vote-form">
@@ -175,27 +175,10 @@
         submitBtn.textContent = 'Submitting...';
 
         try {
-          const response = await fetch(PROXY_BASE, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              action: 'vote',
-              poll_id: currentPoll.poll_id,
-              option: option,
-              voter_tag: voterTag
-            })
-          });
-
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || 'Failed to submit vote');
-          }
+          await ChaprolaProxy.vote(currentPoll.poll_id, option, voterTag);
 
           // Redirect to results
-          window.location.href = `/results.html?poll=${encodeURIComponent(currentPoll.poll_id)}&voted=1`;
+          window.location.href = `results.html?poll=${encodeURIComponent(currentPoll.poll_id)}&voted=1`;
 
         } catch (error) {
           console.error('Failed to submit vote:', error);
