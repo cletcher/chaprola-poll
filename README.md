@@ -28,7 +28,7 @@ Frontend (static HTML/JS/CSS)
   │
   ├── /report (public, no auth) ──► POLLLIST, POLLDETAIL, RESULTS
   │
-  └── /insert_record (via proxy) ──► votes, polls
+  └── /insert-record (via site key) ──► votes, polls
   │
 Chaprola API (api.chaprola.org)
   │
