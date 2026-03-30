@@ -81,10 +81,20 @@
     function parsePollDetail(text) {
       const lines = text.trim().split('\n').filter(line => line.trim());
       const data = {};
+
+      // Chaprola reports append the key field (poll_id) at the end of each line.
+      // Strip it before parsing values.
+      function cleanValue(val) {
+        return val.replace(new RegExp('\\s+' + currentPollId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$'), '').trim();
+      }
+
       for (const line of lines) {
-        if (line.startsWith('TITLE|')) data.title = line.substring(6).trim();
-        else if (line.startsWith('OPTIONS|')) data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
-        else if (line.startsWith('STATUS|')) data.status = line.substring(7).trim();
+        if (line.startsWith('TITLE|')) data.title = cleanValue(line.substring(6));
+        else if (line.startsWith('OPTIONS|')) {
+          const raw = cleanValue(line.substring(8));
+          data.options = raw.split('|').map(o => o.trim()).filter(o => o);
+        }
+        else if (line.startsWith('STATUS|')) data.status = cleanValue(line.substring(7));
       }
       return data.title ? data : null;
     }
