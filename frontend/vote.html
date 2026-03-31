@@ -87,13 +87,25 @@
       const lines = text.trim().split('\n').filter(line => line.trim());
       const data = { poll_id: pollId };
 
+      // Chaprola reports append the key field (poll_id) at the end of each line.
+      // The current implementation appends it TWICE with whitespace, so strip multiple times.
+      function cleanValue(val) {
+        const escapedPollId = pollId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp('\\s+' + escapedPollId + '\\s*$');
+        // Run replacement twice to handle double appending
+        let cleaned = val.replace(regex, '').trim();
+        cleaned = cleaned.replace(regex, '').trim();
+        return cleaned;
+      }
+
       for (const line of lines) {
         if (line.startsWith('TITLE|')) {
-          data.title = line.substring(6).trim();
+          data.title = cleanValue(line.substring(6));
         } else if (line.startsWith('OPTIONS|')) {
-          data.options = line.substring(8).split('|').map(o => o.trim()).filter(o => o);
+          const raw = cleanValue(line.substring(8));
+          data.options = raw.split('|').map(o => o.trim()).filter(o => o);
         } else if (line.startsWith('STATUS|')) {
-          data.status = line.substring(7).trim();
+          data.status = cleanValue(line.substring(7));
         }
       }
 

@@ -84,16 +84,24 @@
     function parsePolls(text) {
       const lines = text.trim().split('\n').filter(line => line.trim());
       return lines.map(line => {
-        // Format: POLL|poll_id|title|options (pipe-separated)
-        if (!line.startsWith('POLL|')) return null;
-        const content = line.substring(5);
-        const parts = content.split('|');
+        // Format: poll_id|title|option1|option2|...|date status
+        // The report returns pipe-delimited rows with the poll_id as the first field
+        const parts = line.split('|').map(p => p.trim());
         if (parts.length < 3) return null;
 
+        // First part is poll_id, second is title, remaining are options plus trailing date/status
+        // Filter out the last part if it looks like a date or status (contains spaces or 'open')
+        const options = parts.slice(2).filter(opt => {
+          // Skip empty, date-like, or status-like values
+          if (!opt) return false;
+          if (opt.includes('2026-') || opt === 'open' || opt === 'closed') return false;
+          return true;
+        });
+
         return {
-          poll_id: parts[0].trim(),
-          title: parts[1].trim(),
-          options: parts.slice(2).map(o => o.trim()).filter(o => o)
+          poll_id: parts[0],
+          title: parts[1],
+          options: options
         };
       }).filter(p => p !== null);
     }
