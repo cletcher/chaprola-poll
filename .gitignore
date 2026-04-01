@@ -21,3 +21,6 @@ Thumbs.db
 
 # MCP configuration (contains API keys)
 .mcp.json
+
+# Build logs
+build_*.log
