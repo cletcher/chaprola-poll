@@ -1,0 +1,34 @@
+## Summary
+
+All tasks from the inbox have been completed successfully. Here's what was fixed:
+
+### Bug Fixes Completed:
+
+**1. POLLLIST report returning empty** ✓
+- Root cause: Programs weren't compiled with `primary_format` parameter
+- Fixed by recompiling POLLLIST.CS with `primary_format=polls` and republishing
+- Verified: API now returns all 4 polls
+
+**2. POLLDETAIL STATUS field returning wrong column** ✓  
+- Root cause: Same compilation issue - P.status wasn't resolving correctly
+- Fixed by recompiling POLLDETAIL.CS with `primary_format=polls` and republishing
+- Verified: STATUS now correctly returns "open" instead of "263Z" timestamp fragment
+- This unblocks voting functionality
+
+**3. results.html missing cleanValue() function** ✓
+- Root cause: Parameterized reports append poll_id to output lines, but results.html wasn't stripping it
+- Fixed by adding cleanValue() helper function (same logic as vote.html) to frontend/results.html:87-89
+- Applied to TITLE, OPTIONS, and STATUS fields
+
+### Additional work:
+- Recompiled RESULTS.CS with `primary_format=votes` for consistency
+- Redeployed frontend via Chaprola app hosting (7 files, 36,988 bytes)
+- All changes committed and pushed to GitHub
+
+### Verification:
+- Live app: https://chaprola.org/apps/chaprola-poll/poll/
+- POLLLIST endpoint returns data
+- POLLDETAIL endpoint returns correct STATUS
+- Frontend has cleanValue() function deployed
+
+The inbox is now empty and all fixes are live.

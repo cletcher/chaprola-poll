@@ -7,10 +7,10 @@ const ChaprolaProxy = {
   API_BASE: 'https://api.chaprola.org',
   USERID: 'chaprola-poll',
   PROJECT: 'poll',
-  API_KEY: 'site_bef09b303bbdba2fe8e7a25916b0dba847bc9df936e52273e9172b267ad6d924',
+  API_KEY: 'site_ae3401111ffb83939527e70b4fb1eae1e1dbdc71804077828d88e3e14c9990c2',
 
   async vote(pollId, option, voterTag = '') {
-    const response = await fetch(`${this.API_BASE}/insert_record`, {
+    const response = await fetch(`${this.API_BASE}/insert-record`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.API_KEY}`,
@@ -75,7 +75,7 @@ const ChaprolaProxy = {
     if (optionList.length < 2) throw new Error('Need at least 2 options');
     if (optionList.length > 10) throw new Error('Max 10 options');
 
-    const response = await fetch(`${this.API_BASE}/insert_record`, {
+    const response = await fetch(`${this.API_BASE}/insert-record`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.API_KEY}`,
