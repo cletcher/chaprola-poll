@@ -1,1 +1,8 @@
-ready-for-developer
+ready-for-vogel
+
+All inbox tasks completed as of 2026-04-01:
+- Fixed v4 bugs (frontend parsing, compilation)
+- Fixed v5 bugs (POLLLIST prefix, cleanValue double poll_id)
+- Responded to evaluation report (app working correctly)
+- Redeployed with updated site key
+- App fully functional at https://chaprola.org/apps/chaprola-poll/poll/
