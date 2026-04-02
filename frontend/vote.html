@@ -206,7 +206,13 @@
         submitBtn.textContent = 'Submitting...';
 
         try {
-          await ChaprolaProxy.vote(currentPoll.poll_id, option, voterTag);
+          // Add timeout to prevent hanging
+          const votePromise = ChaprolaProxy.vote(currentPoll.poll_id, option, voterTag);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Request timed out')), 30000)
+          );
+
+          await Promise.race([votePromise, timeoutPromise]);
 
           // Mark as voted in localStorage
           localStorage.setItem(`voted_${currentPoll.poll_id}`, 'true');

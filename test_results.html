@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Results</title>
+</head>
+<body>
+  <h1>Test Results for LUNCH2026A</h1>
+  <div id="output"></div>
+
+  <script>
+    const API_BASE = 'https://api.chaprola.org';
+    const API_KEY = 'site_ae3401111ffb83939527e70b4fb1eae1e1dbdc71804077828d88e3e14c9990c2';
+    const USERID = 'chaprola-poll';
+    const PROJECT = 'poll';
+
+    async function testQuery() {
+      const response = await fetch(`${API_BASE}/query`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userid: USERID,
+          project: PROJECT,
+          file: 'votes',
+          where: [{field: 'poll_id', op: 'eq', value: 'LUNCH2026A'}],
+          select: ['option', 'voter_tag']
+        })
+      });
+
+      const data = await response.json();
+      document.getElementById('output').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    }
+
+    testQuery();
+  </script>
+</body>
+</html>

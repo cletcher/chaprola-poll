@@ -56,6 +56,51 @@ export default {
       return jsonResponse({ error: error.message || 'Internal server error' }, 500);
     }
   },
+
+  async scheduled(event, env, ctx) {
+    // Cron trigger: consolidate votes and polls every 15 minutes
+    const apiKey = env.CHAPROLA_API_KEY;
+    if (!apiKey) {
+      console.error('CHAPROLA_API_KEY not configured');
+      return;
+    }
+
+    try {
+      console.log('Running scheduled consolidation...');
+
+      // Consolidate votes
+      await fetch(`${CHAPROLA_API}/consolidate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userid: 'chaprola-poll',
+          project: 'poll',
+          file: 'votes',
+        }),
+      });
+
+      // Consolidate polls
+      await fetch(`${CHAPROLA_API}/consolidate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userid: 'chaprola-poll',
+          project: 'poll',
+          file: 'polls',
+        }),
+      });
+
+      console.log('Consolidation complete');
+    } catch (error) {
+      console.error('Consolidation error:', error);
+    }
+  },
 };
 
 function jsonResponse(data, status = 200) {
