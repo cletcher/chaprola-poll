@@ -49,6 +49,8 @@
         const text = await response.text();
         const polls = parsePolls(text);
 
+        container.classList.remove('loading');
+
         if (polls.length === 0) {
           container.innerHTML = '<div class="card"><p>No open polls at the moment. <a href="create.html">Create one!</a></p></div>';
           return;
@@ -72,6 +74,7 @@
 
       } catch (error) {
         console.error('Failed to load polls:', error);
+        container.classList.remove('loading');
         container.innerHTML = `
           <div class="message message-error">
             Failed to load polls. Please try again later.

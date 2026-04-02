@@ -1,8 +1,9 @@
 ready-for-vogel
 
-All inbox tasks completed as of 2026-04-01:
-- Fixed v4 bugs (frontend parsing, compilation)
-- Fixed v5 bugs (POLLLIST prefix, cleanValue double poll_id)
-- Responded to evaluation report (app working correctly)
-- Redeployed with updated site key
+All Charles bug fixes completed as of 2026-04-01:
+- Bug 1: Removed spinning circle animation from styles.css
+- Bug 2: Changed to client-side pivot to show all custom group names
+- Bug 3: Improved re-vote error handling with form hiding
+- Redeployed frontend successfully
+- All fixes tested and verified on live URL
 - App fully functional at https://chaprola.org/apps/chaprola-poll/poll/

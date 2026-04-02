@@ -43,6 +43,7 @@
       const justVoted = params.get('voted') === '1';
 
       if (!currentPollId) {
+        container.classList.remove('loading');
         container.innerHTML = '<div class="message message-error">No poll specified. <a href="./">Browse open polls</a></div>';
         return;
       }
@@ -69,11 +70,13 @@
         // Get results via /query with server-side pivot (showcases Chaprola's GROUP BY)
         const pivotData = await ChaprolaProxy.getResults(currentPollId);
 
+        container.classList.remove('loading');
         document.title = `Results: ${pollDetail?.title || currentPollId} - Chaprola Poll`;
         renderResults(container, pollDetail, pivotData, showVoteSuccess);
 
       } catch (error) {
         console.error('Failed to load results:', error);
+        container.classList.remove('loading');
         container.innerHTML = `<div class="message message-error">Failed to load results. Please try again later.<br><small>${escapeHtml(error.message)}</small></div>`;
       }
     }
@@ -128,8 +131,8 @@
       }).join('');
 
       // Build cross-tabulation table from pivot columns/values
-      // Filter out the empty-string column for display (anonymous votes)
-      const namedColumns = columns.filter(c => c !== '');
+      // Trim column names and filter out empty ones (anonymous votes)
+      const namedColumns = columns.map(c => (c || '').trim()).filter(c => c !== '');
       const hasGroups = namedColumns.length > 0;
 
       let crossTabHtml = '';
@@ -150,8 +153,9 @@
                 <tr>
                   <td>${escapeHtml(opt)}</td>
                   ${namedColumns.map(col => {
-                    const ci = columns.indexOf(col);
-                    return `<td>${values[ri] ? values[ri][ci] || 0 : 0}</td>`;
+                    // Find the column index in the original columns array (which may have spaces)
+                    const ci = columns.findIndex(c => (c || '').trim() === col);
+                    return `<td>${values[ri] && ci >= 0 ? values[ri][ci] || 0 : 0}</td>`;
                   }).join('')}
                 </tr>
               `).join('')}
@@ -170,7 +174,6 @@
         <div class="total-votes">${grandTotal.toLocaleString()} vote${grandTotal !== 1 ? 's' : ''}</div>
         <div class="results-chart">${barChart}</div>
         ${crossTabHtml}
-        <div class="refresh-indicator">Auto-refreshing every 10 seconds</div>
       `;
     }
 
