@@ -169,10 +169,13 @@
         `;
       }).join('');
 
-      // Build cross-tabulation table from pivot columns/values
-      // Trim column names, strip TABULATE's _ prefix, title-case, filter anonymous
-      const namedColumns = columns.map(c => (c || '').trim()).filter(c => c !== '' && c !== '_');
+      // Build cross-tabulation table from pivot columns/values.
+      // TABULATE prefixes column names with _; an unlabeled column comes back
+      // as "_" and represents votes with no voter_tag — show it as "Anonymous"
+      // so cross-tab totals reconcile with the bar chart.
+      const namedColumns = columns.map(c => (c || '').trim()).filter(c => c !== '');
       const displayColumns = namedColumns.map(c => {
+        if (c === '_') return 'Anonymous';
         const stripped = c.replace(/^_/, '');
         return stripped.charAt(0).toUpperCase() + stripped.slice(1).toLowerCase();
       });
