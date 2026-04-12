@@ -1,0 +1,16 @@
+// DELETEPOLL - Delete a poll and all its votes
+// Parameter: poll_id
+
+QUERY polls INTO poll WHERE poll_id EQ PARAM.poll_id
+DELETE PRIMARY poll.RECORDNUMBERS
+
+OPEN "votes" WHERE poll_id EQ PARAM.poll_id
+DELETE votes.RECORDNUMBERS
+CLOSE
+
+IF poll.RECORDCOUNT EQ 0 GOTO 900 ;
+PRINT "STATUS|OK"
+PRINT "VOTES_DELETED|" + votes.RECORDCOUNT
+END
+
+900 PRINT "STATUS|NOT_FOUND"
