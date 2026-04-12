@@ -1,0 +1,1 @@
+Quick debug utility that counts votes matching a poll_id. QUERY votes WHERE poll_id EQ PARAM.poll_id into qresult, then PRINT "COUNT:" + qresult.RECORDCOUNT. Accepts PARAM.poll_id. Used for ad-hoc verification during development; not called from the frontend.
