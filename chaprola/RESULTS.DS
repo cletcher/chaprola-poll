@@ -1,0 +1,1 @@
+Vote results with cross-tabulation for a single poll. Uses QUERY to filter votes by PARAM.poll_id, then TABULATE to produce a COUNT pivot of option vs voter_tag. Outputs JSON matrix via PRINT TABULATE AS JSON. Used by the results page for bar charts and group breakdown tables.

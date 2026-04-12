@@ -1,0 +1,1 @@
+List all open polls. Filters polls where status equals "open" and outputs one pipe-delimited line per poll: poll_id|title|options|created_at. Used by the home page to show available polls.

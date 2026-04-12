@@ -15,6 +15,10 @@ node_modules/
 *.swp
 *.swo
 
+# Agent tooling
+.claude/
+.playwright-mcp/
+
 # OS
 .DS_Store
 Thumbs.db

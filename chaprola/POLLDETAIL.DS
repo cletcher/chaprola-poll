@@ -1,0 +1,1 @@
+Get a single poll by poll_id parameter. Outputs three labeled lines: TITLE|..., OPTIONS|..., STATUS|.... Used by the vote page to render the ballot and by the results page to show poll metadata. Accepts PARAM.poll_id.
