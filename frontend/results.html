@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Results - Chaprola Poll</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="api/proxy.js"></script>
 </head>
 <body>
   <header>
@@ -67,8 +66,11 @@
         const detailText = await detailResponse.text();
         const pollDetail = parsePollDetail(detailText);
 
-        // Get results via /query with server-side pivot (showcases Chaprola's GROUP BY)
-        const pivotData = await ChaprolaProxy.getResults(currentPollId);
+        // Get results from published RESULTS report (TABULATE output)
+        const resultsUrl = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=RESULTS&poll_id=${encodeURIComponent(currentPollId)}`;
+        const resultsResponse = await fetch(resultsUrl);
+        const resultsText = await resultsResponse.text();
+        const pivotData = parsePivotJson(resultsText);
 
         container.classList.remove('loading');
         document.title = `Results: ${pollDetail?.title || currentPollId} - Chaprola Poll`;
@@ -78,6 +80,22 @@
         console.error('Failed to load results:', error);
         container.classList.remove('loading');
         container.innerHTML = `<div class="message message-error">Failed to load results. Please try again later.<br><small>${escapeHtml(error.message)}</small></div>`;
+      }
+    }
+
+    function parsePivotJson(text) {
+      try {
+        const data = JSON.parse(text.trim());
+        // TABULATE returns values as strings — parse to numbers
+        if (data.values) {
+          data.values = data.values.map(row => row.map(v => parseInt(v, 10) || 0));
+        }
+        // Compute row_totals and grand_total from values matrix
+        data.row_totals = (data.values || []).map(row => row.reduce((sum, v) => sum + v, 0));
+        data.grand_total = data.row_totals.reduce((sum, v) => sum + v, 0);
+        return { pivot: data };
+      } catch {
+        return { pivot: { rows: [], columns: [], values: [], row_totals: [], grand_total: 0 } };
       }
     }
 
@@ -103,11 +121,32 @@
     }
 
     function renderResults(container, pollDetail, pivotData, showVoteSuccess) {
-      const rows = pivotData.pivot.rows || [];
-      const rowTotals = pivotData.pivot.row_totals || [];
+      let rows = pivotData.pivot.rows || [];
+      let rowTotals = pivotData.pivot.row_totals || [];
       const grandTotal = pivotData.pivot.grand_total || 0;
       const columns = pivotData.pivot.columns || [];
-      const values = pivotData.pivot.values || [];
+      let values = pivotData.pivot.values || [];
+
+      // Merge TABULATE rows (uppercased) with poll options (original case).
+      // TABULATE uppercases grouping keys, so match case-insensitively
+      // and prefer the poll definition's original casing.
+      if (pollDetail?.options) {
+        const emptyRow = columns.length > 0 ? columns.map(() => 0) : [0];
+        // Replace TABULATE's uppercased row labels with original-case poll options
+        for (let i = 0; i < rows.length; i++) {
+          const match = pollDetail.options.find(o => o.toUpperCase() === rows[i].toUpperCase());
+          if (match) rows[i] = match;
+        }
+        // Add any poll options that have 0 votes (not in TABULATE output)
+        for (const opt of pollDetail.options) {
+          if (!rows.some(r => r.toUpperCase() === opt.toUpperCase())) {
+            rows.push(opt);
+            rowTotals.push(0);
+            values.push(emptyRow);
+          }
+        }
+      }
+
       const maxCount = Math.max(...rowTotals, 1);
 
       // Build bar chart from pivot row_totals
@@ -131,21 +170,31 @@
       }).join('');
 
       // Build cross-tabulation table from pivot columns/values
-      // Trim column names and filter out empty ones (anonymous votes)
-      const namedColumns = columns.map(c => (c || '').trim()).filter(c => c !== '');
+      // Trim column names, strip TABULATE's _ prefix, title-case, filter anonymous
+      const namedColumns = columns.map(c => (c || '').trim()).filter(c => c !== '' && c !== '_');
+      const displayColumns = namedColumns.map(c => {
+        const stripped = c.replace(/^_/, '');
+        return stripped.charAt(0).toUpperCase() + stripped.slice(1).toLowerCase();
+      });
       const hasGroups = namedColumns.length > 0;
 
       let crossTabHtml = '';
       if (hasGroups) {
-        const emptyIdx = columns.indexOf('');
+        // Compute column totals
+        const colTotals = namedColumns.map(col => {
+          const ci = columns.findIndex(c => (c || '').trim() === col);
+          return rows.reduce((sum, _, ri) => sum + (values[ri] && ci >= 0 ? values[ri][ci] || 0 : 0), 0);
+        });
+
         crossTabHtml = `
           <h2>Votes by Group</h2>
-          <p class="pivot-note">Aggregated server-side by Chaprola /query pivot</p>
+          <p class="pivot-note">Aggregated server-side by Chaprola TABULATE</p>
+          <div class="crosstab-scroll">
           <table class="crosstab">
             <thead>
               <tr>
                 <th>Option</th>
-                ${namedColumns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
+                ${displayColumns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
@@ -153,16 +202,25 @@
                 <tr>
                   <td>${escapeHtml(opt)}</td>
                   ${namedColumns.map(col => {
-                    // Find the column index in the original columns array (which may have spaces)
                     const ci = columns.findIndex(c => (c || '').trim() === col);
                     return `<td>${values[ri] && ci >= 0 ? values[ri][ci] || 0 : 0}</td>`;
                   }).join('')}
                 </tr>
               `).join('')}
             </tbody>
+            <tfoot>
+              <tr>
+                <td><strong>Total</strong></td>
+                ${colTotals.map(t => `<td><strong>${t}</strong></td>`).join('')}
+              </tr>
+            </tfoot>
           </table>
+          </div>
         `;
       }
+
+      const baseUrl = window.location.href.replace(/[^\/]*(\?.*)?$/, '');
+      const voteUrl = `${baseUrl}vote.html?poll=${encodeURIComponent(currentPollId)}`;
 
       container.innerHTML = `
         ${showVoteSuccess ? '<div class="message message-success">Your vote has been recorded!</div>' : ''}
@@ -174,7 +232,55 @@
         <div class="total-votes">${grandTotal.toLocaleString()} vote${grandTotal !== 1 ? 's' : ''}</div>
         <div class="results-chart">${barChart}</div>
         ${crossTabHtml}
+        <div class="share-box">
+          <label>Share this poll:</label>
+          <div class="share-url">
+            <input type="text" id="share-url" value="${escapeHtml(voteUrl)}" readonly>
+            <button type="button" class="btn btn-secondary btn-small" onclick="copyShareUrl()">Copy</button>
+          </div>
+          <div style="margin-top: 1rem; text-align: right;">
+            <button type="button" class="btn btn-danger btn-small" onclick="deletePoll()">Delete Poll</button>
+          </div>
+        </div>
       `;
+    }
+
+    const DELETE_TOKEN = 'act_78a0c653941758c2cdb1f73d4f25607c';
+
+    async function deletePoll() {
+      if (!confirm('Delete this poll and all its votes? This cannot be undone.')) return;
+
+      const btn = document.querySelector('.btn-danger');
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+
+      try {
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=DELETEPOLL&poll_id=${encodeURIComponent(currentPollId)}&token=${DELETE_TOKEN}`;
+        const response = await fetch(url);
+        const text = await response.text();
+
+        if (text.includes('STATUS|OK')) {
+          if (refreshInterval) clearInterval(refreshInterval);
+          const container = document.getElementById('results-container');
+          container.innerHTML = '<div class="message message-success">Poll deleted. <a href="./">Browse polls</a></div>';
+        } else {
+          throw new Error('Delete failed');
+        }
+      } catch (error) {
+        btn.disabled = false;
+        btn.textContent = 'Delete Poll';
+        alert('Failed to delete poll: ' + error.message);
+      }
+    }
+
+    function copyShareUrl() {
+      const input = document.getElementById('share-url');
+      input.select();
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = input.nextElementSibling;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
     }
 
     function escapeHtml(text) {

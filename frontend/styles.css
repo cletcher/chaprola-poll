@@ -170,6 +170,15 @@ h2 {
   font-size: 0.875rem;
 }
 
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 1.5rem;
@@ -281,6 +290,10 @@ textarea:focus {
 }
 
 /* Cross-tabulation table */
+.crosstab-scroll {
+  overflow-x: auto;
+}
+
 .crosstab {
   width: 100%;
   border-collapse: collapse;

@@ -23,7 +23,7 @@ const ChaprolaProxy = {
         record: {
           poll_id: pollId.trim().substring(0, 11),
           option: option.trim().substring(0, 24),
-          voter_tag: (voterTag || '').trim().substring(0, 11),
+          voter_tag: (voterTag || '').trim().substring(0, 24),
           voted_at: new Date().toISOString()
         }
       })
