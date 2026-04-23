@@ -289,35 +289,23 @@
     }
 
     function parsePollDetail(text, pollId) {
+      // POLLDETAIL.CS emits pipe-delimited key|value lines (title, options,
+      // status, owner_sub). Parse by splitting on the first | only, so
+      // option lists with internal pipes ("Pizza|Thai Food|...") stay intact.
       const lines = text.trim().split('\n').filter(line => line.trim());
       const data = { poll_id: pollId };
-
-      // Chaprola reports append the key field (poll_id) at the end of each line.
-      // The current implementation appends it TWICE with whitespace, so strip multiple times.
-      function cleanValue(val) {
-        const escapedPollId = pollId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp('\\s+' + escapedPollId + '\\s*$');
-        // Run replacement twice to handle double appending
-        let cleaned = val.replace(regex, '').trim();
-        cleaned = cleaned.replace(regex, '').trim();
-        return cleaned;
-      }
-
       for (const line of lines) {
-        if (line.startsWith('TITLE|')) {
-          data.title = cleanValue(line.substring(6));
-        } else if (line.startsWith('OPTIONS|')) {
-          const raw = cleanValue(line.substring(8));
-          data.options = raw.split('|').map(o => o.trim()).filter(o => o);
-        } else if (line.startsWith('STATUS|')) {
-          data.status = cleanValue(line.substring(7));
+        const idx = line.indexOf('|');
+        if (idx < 0) continue;
+        const key = line.substring(0, idx).trim().toLowerCase();
+        const val = line.substring(idx + 1).trim();
+        if (key === 'options') {
+          data.options = val.split('|').map(o => o.trim()).filter(Boolean);
+        } else {
+          data[key] = val;
         }
       }
-
-      if (!data.title || !data.options) {
-        return null;
-      }
-
+      if (!data.title || !data.options) return null;
       return data;
     }
 

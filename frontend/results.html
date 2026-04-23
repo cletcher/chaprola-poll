@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css">
     <!-- chp-auth-widget: chaprola-auth.js -->
     <script src="https://chaprola.org/chaprola-auth.js"></script>
+    <script src="api/proxy.js"></script>
 </head>
 <body>
     <!-- BEGIN chp-auth-widget -->
@@ -301,22 +302,21 @@
     }
 
     function parsePollDetail(text) {
+      // POLLDETAIL.CS emits pipe-delimited key|value lines. Split on the
+      // first | only so the options list (internally pipe-delimited) stays
+      // intact for the options handler.
       const lines = text.trim().split('\n').filter(line => line.trim());
       const data = {};
-
-      // Chaprola reports append the key field (poll_id) at the end of each line.
-      // Strip it before parsing values.
-      function cleanValue(val) {
-        return val.replace(new RegExp('\\s+' + currentPollId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$'), '').trim();
-      }
-
       for (const line of lines) {
-        if (line.startsWith('TITLE|')) data.title = cleanValue(line.substring(6));
-        else if (line.startsWith('OPTIONS|')) {
-          const raw = cleanValue(line.substring(8));
-          data.options = raw.split('|').map(o => o.trim()).filter(o => o);
+        const idx = line.indexOf('|');
+        if (idx < 0) continue;
+        const key = line.substring(0, idx).trim().toLowerCase();
+        const val = line.substring(idx + 1).trim();
+        if (key === 'options') {
+          data.options = val.split('|').map(o => o.trim()).filter(Boolean);
+        } else {
+          data[key] = val;
         }
-        else if (line.startsWith('STATUS|')) data.status = cleanValue(line.substring(7));
       }
       return data.title ? data : null;
     }
@@ -426,6 +426,13 @@
       const baseUrl = window.location.href.replace(/[^\/]*(\?.*)?$/, '');
       const voteUrl = `${baseUrl}vote.html?poll=${encodeURIComponent(currentPollId)}`;
 
+      // Delete-gate: only render the Delete button when the logged-in user
+      // is the poll's owner. DELETEPOLL.CS enforces the same check server-
+      // side (WHERE owner_sub EQ PARAM.user_id), so this is defense-in-
+      // depth: UI hides the button + platform rejects the call.
+      const currentSub = (window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser() && window.chaprolaAuth.getUser().sub) || null;
+      const isOwner = !!(currentSub && pollDetail && pollDetail.owner_sub && currentSub === pollDetail.owner_sub);
+
       container.innerHTML = `
         ${showVoteSuccess ? '<div class="message message-success">Your vote has been recorded!</div>' : ''}
         <h1>${escapeHtml(pollDetail?.title || currentPollId)}</h1>
@@ -442,9 +449,10 @@
             <input type="text" id="share-url" value="${escapeHtml(voteUrl)}" readonly>
             <button type="button" class="btn btn-secondary btn-small" onclick="copyShareUrl()">Copy</button>
           </div>
+          ${isOwner ? `
           <div style="margin-top: 1rem; text-align: right;">
             <button type="button" class="btn btn-danger btn-small" onclick="deletePoll()">Delete Poll</button>
-          </div>
+          </div>` : ''}
         </div>
       `;
     }
@@ -459,16 +467,23 @@
       btn.textContent = 'Deleting...';
 
       try {
-        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=DELETEPOLL&poll_id=${encodeURIComponent(currentPollId)}&token=${DELETE_TOKEN}`;
+        const user = (window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser()) || {};
+        const userSub = user.sub || '';
+        // DELETEPOLL.CS is token-gated via publish + enforces
+        // WHERE owner_sub EQ PARAM.user_id. Both the token and the
+        // owner-sub match are required; either alone is insufficient.
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=DELETEPOLL&poll_id=${encodeURIComponent(currentPollId)}&user_id=${encodeURIComponent(userSub)}&token=${DELETE_TOKEN}`;
         const response = await fetch(url);
         const text = await response.text();
 
-        if (text.includes('STATUS|OK')) {
+        if (text.includes('status|ok') || text.includes('STATUS|OK')) {
           if (refreshInterval) clearInterval(refreshInterval);
           const container = document.getElementById('results-container');
           container.innerHTML = '<div class="message message-success">Poll deleted. <a href="./">Browse polls</a></div>';
+        } else if (text.includes('status|not_found') || text.includes('STATUS|NOT_FOUND')) {
+          throw new Error('Not found or not owned by you');
         } else {
-          throw new Error('Delete failed');
+          throw new Error('Delete failed: ' + text.slice(0, 120));
         }
       } catch (error) {
         btn.disabled = false;
