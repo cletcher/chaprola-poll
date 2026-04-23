@@ -235,12 +235,18 @@
     const API_BASE = 'https://api.chaprola.org';
     const USERID = 'chaprola-poll';
     const PROJECT = 'poll';
+    const DEMO_USER_ID = 'demo-user';
+
+    function currentUserId() {
+      var u = window.chaprolaAuth && window.chaprolaAuth.getUser();
+      return (u && u.sub) || DEMO_USER_ID;
+    }
 
     async function loadPolls() {
       const container = document.getElementById('polls-list');
 
       try {
-        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLLIST`;
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=POLLLIST&user_id=${encodeURIComponent(currentUserId())}`;
         const response = await fetch(url);
 
         if (!response.ok) {
