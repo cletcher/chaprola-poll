@@ -94,7 +94,7 @@ const ChaprolaProxy = {
     };
   },
 
-  async createPoll(pollId, title, options, createdBy) {
+  async createPoll(pollId, title, options, createdBy, ownerSub) {
     // Validate
     if (!pollId || pollId.length < 4) throw new Error('Invalid poll_id');
     if (!title || title.length < 3) throw new Error('Title too short');
@@ -118,6 +118,7 @@ const ChaprolaProxy = {
           title: title.trim().substring(0, 39),
           options: optionList.map(o => o.trim().substring(0, 20)).join('|'),
           created_by: createdBy.trim().substring(0, 21),
+          owner_sub: (ownerSub || 'demo-user').trim().substring(0, 40),
           created_at: new Date().toISOString(),
           status: 'open'
         }

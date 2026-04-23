@@ -1,11 +1,14 @@
-// List all open polls
+// POLLLIST — List the caller's open polls
+// Multi-user: scoped by PARAM.user_id matching polls.owner_sub.
+// Unauthenticated /report callers pass user_id=demo-user for the public
+// read-only preview; logged-in users see only polls they created.
 
-QUERY polls INTO open_polls WHERE status EQ "open" ORDER BY created_at DESC
+QUERY polls INTO mine WHERE owner_sub EQ PARAM.user_id AND status EQ "open" ORDER BY created_at DESC
 
 LET rec = 1
 
-100 READ open_polls rec
+100 READ mine rec
     IF EOF END
-    PRINT open_polls.poll_id + "|" + open_polls.title + "|" + open_polls.options + "|" + open_polls.created_at
+    PRINT mine.poll_id + "|" + mine.title + "|" + mine.options + "|" + mine.created_at
     LET rec = rec + 1
     GOTO 100

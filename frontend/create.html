@@ -347,7 +347,8 @@
       const pollId = generatePollId();
 
       try {
-        await ChaprolaProxy.createPoll(pollId, title, options.join('|'), createdBy);
+        const ownerSub = ChaprolaPoll.currentUserId();
+        await ChaprolaProxy.createPoll(pollId, title, options.join('|'), createdBy, ownerSub);
 
         // Show success
         form.style.display = 'none';

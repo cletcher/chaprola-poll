@@ -103,7 +103,7 @@ async function handleVote(body, apiKey) {
 }
 
 async function handleCreatePoll(body, apiKey) {
-  const { poll_id, title, options, created_by } = body;
+  const { poll_id, title, options, created_by, owner_sub } = body;
 
   // Validate required fields
   if (!poll_id || typeof poll_id !== 'string' || poll_id.length < 4) {
@@ -133,6 +133,10 @@ async function handleCreatePoll(body, apiKey) {
   const sanitizedTitle = title.trim().substring(0, 100);
   const sanitizedOptions = optionList.map(o => o.trim().substring(0, 100)).join('|');
   const sanitizedCreatedBy = created_by.trim().substring(0, 50);
+  // owner_sub is the logged-in user's Chaprola sub (from chaprolaAuth).
+  // Falls back to 'demo-user' for the anonymous public-demo flow so
+  // POLLLIST.CS can still scope by PARAM.user_id uniformly.
+  const sanitizedOwnerSub = (owner_sub || 'demo-user').trim().substring(0, 40);
   const createdAt = new Date().toISOString();
 
   // Call Chaprola insert_record
@@ -151,6 +155,7 @@ async function handleCreatePoll(body, apiKey) {
         title: sanitizedTitle,
         options: sanitizedOptions,
         created_by: sanitizedCreatedBy,
+        owner_sub: sanitizedOwnerSub,
         created_at: createdAt,
         status: 'open'
       }

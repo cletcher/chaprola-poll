@@ -5,6 +5,16 @@ const ChaprolaPoll = {
   PROXY_BASE: '/api/proxy',
   USERID: 'chaprola-poll',
   PROJECT: 'poll',
+  DEMO_USER_ID: 'demo-user',
+
+  currentUserId() {
+    const u = window.chaprolaAuth && window.chaprolaAuth.getUser();
+    return (u && u.sub) || this.DEMO_USER_ID;
+  },
+
+  isLoggedIn() {
+    return !!(window.chaprolaAuth && window.chaprolaAuth.getUser());
+  },
 
   escapeHtml(text) {
     const div = document.createElement('div');
@@ -30,6 +40,11 @@ const ChaprolaPoll = {
     url.searchParams.set('userid', this.USERID);
     url.searchParams.set('project', this.PROJECT);
     url.searchParams.set('name', name);
+    // Multi-user scoping: CS programs use PARAM.user_id to filter.
+    // Unauthed callers get demo-user's records (read-only preview).
+    if (!params.user_id) {
+      url.searchParams.set('user_id', this.currentUserId());
+    }
 
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);
