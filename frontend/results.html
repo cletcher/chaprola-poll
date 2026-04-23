@@ -426,12 +426,12 @@
       const baseUrl = window.location.href.replace(/[^\/]*(\?.*)?$/, '');
       const voteUrl = `${baseUrl}vote.html?poll=${encodeURIComponent(currentPollId)}`;
 
-      // Delete-gate: only render the Delete button when the logged-in user
-      // is the poll's owner. DELETEPOLL.CS enforces the same check server-
-      // side (WHERE owner_sub EQ PARAM.user_id), so this is defense-in-
-      // depth: UI hides the button + platform rejects the call.
-      const currentSub = (window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser() && window.chaprolaAuth.getUser().sub) || null;
-      const isOwner = !!(currentSub && pollDetail && pollDetail.owner_sub && currentSub === pollDetail.owner_sub);
+      // Delete button appears for every logged-in user; DELETEPOLL.CS
+      // enforces ownership server-side (WHERE owner_sub EQ PARAM.user_id)
+      // and returns status|not_found for non-owners. owner_sub is NOT
+      // exposed in POLLDETAIL output — exposing it would let an attacker
+      // pair it with a publicly-visible act_ token to spoof deletes.
+      const isLoggedIn = !!(window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser());
 
       container.innerHTML = `
         ${showVoteSuccess ? '<div class="message message-success">Your vote has been recorded!</div>' : ''}
@@ -449,7 +449,7 @@
             <input type="text" id="share-url" value="${escapeHtml(voteUrl)}" readonly>
             <button type="button" class="btn btn-secondary btn-small" onclick="copyShareUrl()">Copy</button>
           </div>
-          ${isOwner ? `
+          ${isLoggedIn ? `
           <div style="margin-top: 1rem; text-align: right;">
             <button type="button" class="btn btn-danger btn-small" onclick="deletePoll()">Delete Poll</button>
           </div>` : ''}

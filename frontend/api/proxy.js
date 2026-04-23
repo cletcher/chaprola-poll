@@ -37,63 +37,6 @@ const ChaprolaProxy = {
     return { status: 'ok', message: 'Vote recorded' };
   },
 
-  async getResults(pollId) {
-    // Get raw votes and build pivot client-side to ensure ALL voter_tags appear
-    const response = await fetch(`${this.API_BASE}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        userid: this.USERID,
-        project: this.PROJECT,
-        file: 'votes',
-        where: [{field: 'poll_id', op: 'eq', value: pollId}],
-        select: ['option', 'voter_tag']
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to load results: ${error}`);
-    }
-
-    const data = await response.json();
-
-    // Build pivot table client-side
-    return this.buildPivot(data.records);
-  },
-
-  buildPivot(records) {
-    // Extract unique options and voter_tags
-    const options = [...new Set(records.map(r => r.option))].sort();
-    const voterTags = [...new Set(records.map(r => r.voter_tag || ''))].sort();
-
-    // Build values matrix: values[optionIndex][voterTagIndex] = count
-    const values = options.map(option => {
-      return voterTags.map(tag => {
-        return records.filter(r => r.option === option && (r.voter_tag || '') === tag).length;
-      });
-    });
-
-    // Calculate row totals
-    const rowTotals = values.map(row => row.reduce((sum, val) => sum + val, 0));
-
-    // Calculate grand total
-    const grandTotal = records.length;
-
-    return {
-      pivot: {
-        rows: options,
-        columns: voterTags,
-        values: values,
-        row_totals: rowTotals,
-        grand_total: grandTotal
-      }
-    };
-  },
-
   async createPoll(pollId, title, options, createdBy, ownerSub) {
     // Validate
     if (!pollId || pollId.length < 4) throw new Error('Invalid poll_id');
