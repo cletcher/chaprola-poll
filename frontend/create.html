@@ -347,7 +347,7 @@
       const pollId = generatePollId();
 
       try {
-        const ownerSub = ChaprolaPoll.currentUserId();
+        const ownerSub = (window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser()?.sub) || 'demo-user';
         await ChaprolaProxy.createPoll(pollId, title, options.join('|'), createdBy, ownerSub);
 
         // Show success

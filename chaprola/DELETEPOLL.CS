@@ -1,16 +1,22 @@
-// DELETEPOLL - Delete a poll and all its votes
-// Parameter: poll_id
+// DELETEPOLL — delete a poll and all its votes
+// Multi-user: only the poll owner can delete, scoped by owner_sub.
+// Parameters: PARAM.poll_id, PARAM.user_id
 
-QUERY polls INTO poll WHERE poll_id EQ PARAM.poll_id
-DELETE PRIMARY poll.RECORDNUMBERS
+OPEN PRIMARY "polls"
 
-OPEN "votes" WHERE poll_id EQ PARAM.poll_id
-DELETE votes.RECORDNUMBERS
+QUERY polls INTO target WHERE poll_id EQ PARAM.poll_id AND owner_sub EQ PARAM.user_id
+
+IF target.RECORDCOUNT EQ 0 GOTO 900 ;
+
+DELETE PRIMARY target.RECORDNUMBERS
+
+OPEN "votes"
+QUERY votes INTO vtarget WHERE poll_id EQ PARAM.poll_id
+DELETE vtarget.RECORDNUMBERS
 CLOSE
 
-IF poll.RECORDCOUNT EQ 0 GOTO 900 ;
-PRINT "STATUS|OK"
-PRINT "VOTES_DELETED|" + votes.RECORDCOUNT
+PRINT "status|ok"
+PRINT "votes_deleted|" + vtarget.RECORDCOUNT
 END
 
-900 PRINT "STATUS|NOT_FOUND"
+900 PRINT "status|not_found"
