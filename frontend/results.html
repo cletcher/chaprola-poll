@@ -428,9 +428,11 @@
 
       // Delete button appears for every logged-in user; DELETEPOLL.CS
       // enforces ownership server-side (WHERE owner_sub EQ PARAM.user_id)
-      // and returns status|not_found for non-owners. owner_sub is NOT
-      // exposed in POLLDETAIL output — exposing it would let an attacker
-      // pair it with a publicly-visible act_ token to spoof deletes.
+      // against the JWT-injected user_id and returns status|not_found
+      // for non-owners. POLLDETAIL also withholds owner_sub so the
+      // information leak that used to feed the spoof-delete attack
+      // chain stays closed — defense in depth alongside the platform's
+      // writable-/report Bearer requirement.
       const isLoggedIn = !!(window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser());
 
       container.innerHTML = `
@@ -467,13 +469,19 @@
       btn.textContent = 'Deleting...';
 
       try {
-        const user = (window.chaprolaAuth && window.chaprolaAuth.getUser && window.chaprolaAuth.getUser()) || {};
-        const userSub = user.sub || '';
-        // DELETEPOLL.CS is token-gated via publish + enforces
-        // WHERE owner_sub EQ PARAM.user_id. Both the token and the
-        // owner-sub match are required; either alone is insufficient.
-        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=DELETEPOLL&poll_id=${encodeURIComponent(currentPollId)}&user_id=${encodeURIComponent(userSub)}&token=${DELETE_TOKEN}`;
-        const response = await fetch(url);
+        // Three layers gate this delete:
+        //   1. act_ token in the URL is the publish-side ACL.
+        //   2. The platform requires a chp_user_ Bearer for any writable
+        //      /report call and rejects URL user_id params (Tawni
+        //      trust-model variant-4, 2026-04-23) — chaprolaAuth.fetch
+        //      attaches the Bearer automatically.
+        //   3. PARAM.user_id is auto-injected from the JWT sub, then
+        //      DELETEPOLL.CS's WHERE owner_sub EQ PARAM.user_id matches
+        //      only polls the caller actually owns.
+        // The URL therefore carries no user_id — that surface was
+        // spoofable; auto-inject is the trusted source.
+        const url = `${API_BASE}/report?userid=${USERID}&project=${PROJECT}&name=DELETEPOLL&poll_id=${encodeURIComponent(currentPollId)}&token=${DELETE_TOKEN}`;
+        const response = await window.chaprolaAuth.fetch(url);
         const text = await response.text();
 
         if (text.includes('status|ok') || text.includes('STATUS|OK')) {
